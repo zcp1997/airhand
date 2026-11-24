@@ -151,3 +151,13 @@ Bundle ID `app.airhand.ios`、扩展 `app.airhand.ios.broadcast`、App Group `gr
 IS_PASS: YES。复核对象为 `/private/tmp/airhand-ios16-validated-source` 最终验证工作树。Swift Package 可执行目标、G1与CI的 `swift run ... AirhandCoreSelfTest` 调用一致；22个用例声明与注册一一对应，88个期望表达式与此前框架版逐项保持，未知媒体类型仍明确失败，故意失败探针退出1。完整G1证据为277项Rust核心/服务器、4项C ABI、22项生产Swift核心、7项IPA校验器，共310项通过；格式与安全边界复核无遗留阻塞。
 
 G2尚未执行设备Release编译与真实IPA检查；G3尚未执行用户iOS16.6.1 + TrollStore安装和交互验收。宿主新系统上的Perception观察通过不替代旧系统backend验证。提交前必须使用这一已验证源码快照；若回同步到本地codes目录或其他工作树，应逐文件核对，不能将原先尚未更新的Swift Testing版本作为本次通过对象。
+
+## G2 首轮视频显示 API 修正
+
+首轮候选构建在提交 `ea17943` 上通过宿主22项核心及7项校验器测试，iOS 编译发现 `AVSampleBufferDisplayLayer.sampleBufferRenderer` / renderer状态仅支持iOS17及以上。修正限定在 `VideoDecoder.swift`：iOS17+保留后台renderer接口，iOS16使用主队列的显示层 `status` / `flush()` / `enqueue(_:)`。
+
+显示取消代次和单个待显示帧由短时 `NSLock` 保护；锁外才调用系统媒体API和回调。setLayer、重启、流重置、释放和格式重建均经原有releaseSession作废旧代次；旧VT回调、等待中的显示和旧首帧确认因此不能修改新流。主队列繁忙时只保留最新一帧，避免排队保留无界CVPixelBuffer。重启在解码串行队列里先作废旧代次、再异步提交flush，随后新代次显示任务按主队列FIFO执行。没有主队列与解码队列之间的同步等待。
+
+VideoToolbox回调先异步回到解码串行队列再修改解码状态；耗时仍在回调到达时测量，不把队列等待混入解码耗时估计。既有帧确认、关键帧请求、音画等待算法和立即显示标记保持。
+
+实际生产VideoDecoder、AvSync、Protocol及Shared Native/Utilities/Model/L10n已用Swift5语言模式、MacOSX26.5 SDK、`arm64-apple-macosx13.0`目标和真实C ABI头文件完成 `swiftc -typecheck`，退出0；Swift语法与diff格式检查通过。这是API/类型检查证据，不代表已运行iOS16显示层或完成G2/G3；修正后仍需完整G1回归、独立QA和再次CI编译。

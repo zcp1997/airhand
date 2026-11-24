@@ -50,6 +50,11 @@ final class VideoDecoder {
     private let onTooLarge: (Codec, Int, Int) -> Void
 
     private var layer: AVSampleBufferDisplayLayer?
+    // Only cancellation and a single pending legacy display frame cross queues.
+    private let displayLock = NSLock()
+    private var displayGeneration: UInt64 = 0
+    private var legacyFrame: (layer: AVSampleBufferDisplayLayer, sample: CMSampleBuffer)?
+    private var legacyDeliveryScheduled = false
     private var session: VTDecompressionSession?
     private var format: CMVideoFormatDescription?
     private var config: (codec: Codec, w: Int, h: Int, params: [Data])?
@@ -113,7 +118,14 @@ final class VideoDecoder {
             self.dropPending()
             self.releaseSession()
             self.needKey = true
-            self.layer?.sampleBufferRenderer.flush()
+            if let layer = self.layer {
+                if #available(iOS 17.0, macOS 14.0, *) {
+                    layer.sampleBufferRenderer.flush()
+                } else {
+                    // Legacy AVSampleBufferDisplayLayer is also a CALayer: use the main queue.
+                    DispatchQueue.main.async { layer.flush() }
+                }
+            }
             self.askKeyframe(force: true)
         }
     }
@@ -272,7 +284,17 @@ final class VideoDecoder {
         askKeyframe()
     }
 
+    private func currentDisplayGeneration() -> UInt64 {
+        displayLock.lock(); defer { displayLock.unlock() }
+        return displayGeneration
+    }
+
     private func releaseSession() {
+        displayLock.lock()
+        displayGeneration &+= 1
+        legacyFrame = nil
+        legacyDeliveryScheduled = false
+        displayLock.unlock()
         if let s = session {
             VTDecompressionSessionInvalidate(s)
         }
@@ -290,16 +312,22 @@ final class VideoDecoder {
         }
         let start = Clock.nowNs
         var flags = VTDecodeInfoFlags()
+        let generation = currentDisplayGeneration()
         let st = VTDecompressionSessionDecodeFrame(s, sampleBuffer: sample, flags: [], infoFlagsOut: &flags) { [weak self] status, info, image, _, _ in
             guard let self else { return }
-            if status != noErr {
-                self.queue.async { self.fail("decode error \(status)") }
-                return
-            }
-            guard let image, !info.contains(.frameDropped) else { return }
+            // Measure decoding at callback arrival, excluding the hop back to the state queue.
             let elapsed = min(max(Clock.nowNs - start, 0), 500_000_000)
-            self.decodeAvgNs = self.decodeAvgNs == 0 ? elapsed : self.decodeAvgNs + (elapsed - self.decodeAvgNs) / 10
-            self.show(image, pts: p.ptsUs)
+            // VideoToolbox may invoke this on another thread. Never mutate decoder state there.
+            self.queue.async {
+                guard !self.released, self.currentDisplayGeneration() == generation else { return }
+                if status != noErr {
+                    self.fail("decode error \(status)")
+                    return
+                }
+                guard let image, !info.contains(.frameDropped) else { return }
+                self.decodeAvgNs = self.decodeAvgNs == 0 ? elapsed : self.decodeAvgNs + (elapsed - self.decodeAvgNs) / 10
+                self.show(image, pts: p.ptsUs)
+            }
         }
         if st != noErr {
             fail("decode \(st)")
@@ -333,12 +361,17 @@ final class VideoDecoder {
         if let arr = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: true) as? [NSMutableDictionary], let a = arr.first {
             a[kCMSampleAttachmentKey_DisplayImmediately] = true
         }
+        let generation = currentDisplayGeneration()
         let enqueue = {
-            let r = layer.sampleBufferRenderer
-            if r.status == .failed { r.flush() }
-            r.enqueue(sb)
-            self.framesShown += 1
-            if self.framesShown == 1 { self.onFirstFrame?() }
+            guard !self.released, self.layer === layer, self.currentDisplayGeneration() == generation else { return }
+            if #available(iOS 17.0, macOS 14.0, *) {
+                let renderer = layer.sampleBufferRenderer
+                if renderer.status == .failed { renderer.flush() }
+                renderer.enqueue(sb)
+                self.didEnqueueFrame()
+            } else {
+                self.enqueueLegacyFrame(sb, on: layer, generation: generation)
+            }
         }
         if sync.enabled {
             let now = Clock.nowNs
@@ -349,6 +382,39 @@ final class VideoDecoder {
             }
         }
         enqueue()
+    }
+
+    private func enqueueLegacyFrame(_ sample: CMSampleBuffer, on layer: AVSampleBufferDisplayLayer, generation: UInt64) {
+        displayLock.lock()
+        guard displayGeneration == generation else { displayLock.unlock(); return }
+        // DisplayImmediately keeps only the latest image; bound work retained while UI is busy too.
+        legacyFrame = (layer, sample)
+        let schedule = !legacyDeliveryScheduled
+        legacyDeliveryScheduled = true
+        displayLock.unlock()
+        guard schedule else { return }
+        DispatchQueue.main.async {
+            self.displayLock.lock()
+            // A cancelled task must not consume a replacement generation's pending frame.
+            guard self.displayGeneration == generation else { self.displayLock.unlock(); return }
+            let frame = self.legacyFrame
+            self.legacyFrame = nil
+            self.legacyDeliveryScheduled = false
+            self.displayLock.unlock()
+            guard let frame else { return }
+            if frame.layer.status == .failed { frame.layer.flush() }
+            frame.layer.enqueue(frame.sample)
+            self.queue.async {
+                guard !self.released, self.layer === frame.layer, self.currentDisplayGeneration() == generation else { return }
+                self.didEnqueueFrame()
+            }
+        }
+    }
+
+    // Called only on the decoder queue, after a current-generation frame was enqueued.
+    private func didEnqueueFrame() {
+        framesShown += 1
+        if framesShown == 1 { onFirstFrame?() }
     }
 
     // ───────────────────────────── 码流 ─────────────────────────────

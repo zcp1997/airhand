@@ -39,3 +39,18 @@
 第一轮发现的Native.swift EOF多空行及手势cancel回归缺失均已修复；两项cancel行为已在最终22项中实际通过。C ABI首轮无效host wait-window断言与既有实现契约不符，独立确认无效句柄原本返回true以避免停止编码器等待；仅修测试，生产实现未改。
 
 IPA校验器静态审查覆盖主App/唯一广播扩展身份、精确AppGroup、ad-hoc签名、每个Mach-O设备平台/baseline arm64/最低系统不高于16.6、Observation弱链接及禁止权限/敏感文件。真正Release编译、模拟器XCTest和实际IPA静态验证仍需G2；完整UI、iOS16旧观察后端、VideoToolbox/音频硬件、ReplayKit、TrollStore安装及覆盖升级持久化仍需G3。最终交付必须分别列明这三道闸口的真实状态。
+
+
+## G2 首轮后的 VideoDecoder 窄范围复核
+
+结论：**PASS，路由 NoOne**。首次CI发现的3处iOS17 renderer availability由iOS17+ renderer / iOS16主队列显示层双路径修正。本轮仅审查VideoDecoder生产差异和设计补充，没有启动重复编译。
+
+- NSLock只保护显示代次、单个latest-frame槽和调度标志；系统媒体API、VT失效和外部回调均在锁外。主/解码队列之间没有sync等待，未形成锁反转或队列互等。
+- 所有VT完成回调先回解码串行队列，再检查released和代次，才更新解码估计/显示；回调到达即测耗时，不把队列等待算进解码时间。流重置、layer变化、格式重建与释放均通过releaseSession增加代次并清除旧槽。
+- iOS16主队列任务取帧前核对代次；旧任务不会清掉新代次的槽或调度标志。flag与槽的取出/清空在同一锁区，后续新帧可以正常重调度，不会因旧任务退回而饿死。主队列繁忙时至多保留一个待显示sample，加上已经取出的当前执行帧，不按帧无界排主队列任务。
+- 单个主队列显示操作已开始时，并发reset不会同步中断该系统调用；它仍先于随后提交的主队列flush/新帧完成，不会把旧帧插到已显示的新代次帧之后，也不会改向新的layer。restart在原解码串行队列提交flush后才接受后续显示，FIFO保证该先后关系。
+- 延迟音画显示执行前核对layer和代次；旧首帧确认回到解码队列后同样核对，才增加framesShown/调用onFirstFrame。原确认、关键帧请求和有界音画等待算法未被放宽。
+
+主理人提供的7生产Swift源、真实C ABI头、Swift5 / SDK26.5 / macOS13 typecheck退出0作为API/类型证据。QA又直接读取 `/private/tmp/airhand-ios16-g1-video-fix.log`：修正后完整G1仍为310通过、0失败、3项原有忽略，失败探针、工程生成、pins和安全扫描全部通过；独立diff格式检查退出0。
+
+本窄复核未发现帧逆序、旧任务消耗新槽、无界主队列媒体保留或死锁的阻塞缺陷。允许推送本修正进入第二轮CI；新的设备Release和实际IPA检查仍须由G2证明，iOS16.6.1显示硬件路径及完整交互仍为G3 NOT RUN。
