@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -14,7 +15,7 @@ struct AirhandApp: App {
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
         }
-        .onChange(of: phase) { _, p in
+        .onChange(of: phase) { p in
             app.controller.setForeground(p == .active)
             app.session?.setBackground(p == .background)
             if p == .active { app.hostLive = HostLive.load() }
@@ -58,40 +59,44 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 struct RootView: View {
-    @Bindable var app: AppModel
+    @Perception.Bindable var app: AppModel
 
     var body: some View {
-        TabView(selection: $app.tab) {
-            ConnectView(app: app)
-                .tabItem { Label(L.t("tab_connect"), systemImage: "display") }
-                .tag(AppModel.Tab.connect)
-            ShareView(app: app)
-                .tabItem { Label(L.t("tab_share"), systemImage: "dot.radiowaves.left.and.right") }
-                .tag(AppModel.Tab.share)
-            SettingsView(app: app)
-                .tabItem { Label(L.t("tab_settings"), systemImage: "gearshape") }
-                .tag(AppModel.Tab.settings)
-        }
-        .toasts(app)
-        .onOpenURL { url in app.open(url) }
-        #if DEBUG
-        .task {
-            // 开发用：xcrun simctl launch <模拟器> app.airhand.ios -AirhandConnect 123456 [-AirhandPairing 654321]
-            switch UserDefaults.standard.string(forKey: "AirhandTab") {
-            case "share": app.tab = .share
-            case "settings": app.tab = .settings
-            default: break
+        WithPerceptionTracking {
+            TabView(selection: $app.tab) {
+                ConnectView(app: app)
+                    .tabItem { Label(L.t("tab_connect"), systemImage: "display") }
+                    .tag(AppModel.Tab.connect)
+                ShareView(app: app)
+                    .tabItem { Label(L.t("tab_share"), systemImage: "dot.radiowaves.left.and.right") }
+                    .tag(AppModel.Tab.share)
+                SettingsView(app: app)
+                    .tabItem { Label(L.t("tab_settings"), systemImage: "gearshape") }
+                    .tag(AppModel.Tab.settings)
             }
-            if UserDefaults.standard.bool(forKey: "AirhandHostSelfTest") { DebugHost.start() }
-            if let code = UserDefaults.standard.string(forKey: "AirhandConnect") {
-                try? await Task.sleep(for: .seconds(1.5))
-                app.connect(code: code, pairing: UserDefaults.standard.string(forKey: "AirhandPairing"))
+            .toasts(app)
+            .onOpenURL { url in app.open(url) }
+            #if DEBUG
+            .task {
+                // 开发用：xcrun simctl launch <模拟器> app.airhand.ios -AirhandConnect 123456 [-AirhandPairing 654321]
+                switch UserDefaults.standard.string(forKey: "AirhandTab") {
+                case "share": app.tab = .share
+                case "settings": app.tab = .settings
+                default: break
+                }
+                if UserDefaults.standard.bool(forKey: "AirhandHostSelfTest") { DebugHost.start() }
+                if let code = UserDefaults.standard.string(forKey: "AirhandConnect") {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    app.connect(code: code, pairing: UserDefaults.standard.string(forKey: "AirhandPairing"))
+                }
             }
-        }
-        #endif
-        .sheet(item: $app.pairingFor) { req in
-            PairingSheet(app: app, request: req)
-                .presentationDetents([.medium, .large])
+            #endif
+            .sheet(item: $app.pairingFor) { req in
+                WithPerceptionTracking {
+                    PairingSheet(app: app, request: req)
+                        .presentationDetents([.medium, .large])
+                }
+            }
         }
     }
 }

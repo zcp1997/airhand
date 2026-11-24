@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// “我的设备”里的一台设备：连接成功时自动保存，下次点一下就连
 struct SavedDevice: Codable, Equatable, Identifiable {
@@ -20,7 +20,7 @@ struct SavedDevice: Codable, Equatable, Identifiable {
     var os: OsKind { OsKind.of(hostOs) }
 }
 
-@Observable
+@Perceptible
 final class DeviceStore {
     private(set) var list: [SavedDevice] = []
     private let file = "devices.json"

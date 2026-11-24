@@ -56,7 +56,7 @@ See [How it works → Video](docs/architecture.md#video) for details.
 | Linux | ✅ | ✅ | The host supports X11 desktops only, with software encoding for now |
 | Android 7+ phones / tablets | ✅ | ✅ | Can only be watched until the accessibility service is turned on; the controller connects to one device at a time |
 | Android TV / Google TV | — | View only | Operated entirely with the remote |
-| iOS / iPadOS 17+ | View only | ✅ | Sharing uses the system screen broadcast; iOS doesn't allow controlling the device |
+| iOS / iPadOS 16.6+ | View only | ✅ | Sharing uses the system screen broadcast; iOS doesn't allow controlling the device |
 | Browser (web console) | — | ✅ | Chrome / Edge, Safari 16.4+, Firefox 130+ |
 
 See [Known limitations](docs/limitations.md) for platform-specific caveats.
@@ -184,3 +184,5 @@ How to run the tests, the debugging tools and the project conventions (protocol 
 ## License
 
 [MIT](LICENSE)
+
+This fork provides an [iOS 16.6.1 / TrollStore compatibility candidate](docs/ios.md#ios-1661-candidate-builds-in-this-fork). Build and device acceptance are separate; see the [acceptance gates](docs/ios16-acceptance.zh-CN.md).

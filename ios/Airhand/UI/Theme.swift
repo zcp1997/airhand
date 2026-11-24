@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 
 /// 配色和图标的渐变一致（#7B5CFF → #4C7DFF → #12D3EE），深色界面，和 Android 版一样
@@ -34,19 +35,23 @@ struct Card<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        content
-            .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.stroke))
+        WithPerceptionTracking {
+            content
+                .padding(padding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.stroke))
+        }
     }
 }
 
 struct SectionTitle: View {
     let text: String
     var body: some View {
-        Text(text).font(.footnote.weight(.semibold)).foregroundStyle(Theme.sub).textCase(nil)
-            .padding(.horizontal, 4)
+        WithPerceptionTracking {
+            Text(text).font(.footnote.weight(.semibold)).foregroundStyle(Theme.sub).textCase(nil)
+                .padding(.horizontal, 4)
+        }
     }
 }
 
@@ -61,7 +66,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .background(Theme.gradient.opacity(enabled ? 1 : 0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(.spring(duration: 0.2), value: configuration.isPressed)
+            .animation(.spring(response: 0.2, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 
@@ -76,7 +81,7 @@ struct SecondaryButtonStyle: ButtonStyle {
             .background(Theme.cardHi, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.stroke))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(duration: 0.2), value: configuration.isPressed)
+            .animation(.spring(response: 0.2, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 
@@ -87,18 +92,20 @@ struct StatusPill: View {
     var spinning = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            if spinning {
-                ProgressView().controlSize(.mini).tint(color)
-            } else {
-                Circle().fill(color).frame(width: 7, height: 7)
-                    .shadow(color: color.opacity(0.8), radius: 4)
+        WithPerceptionTracking {
+            HStack(spacing: 6) {
+                if spinning {
+                    ProgressView().controlSize(.mini).tint(color)
+                } else {
+                    Circle().fill(color).frame(width: 7, height: 7)
+                        .shadow(color: color.opacity(0.8), radius: 4)
+                }
+                Text(text).font(.caption.weight(.medium)).foregroundStyle(Theme.sub).lineLimit(1)
             }
-            Text(text).font(.caption.weight(.medium)).foregroundStyle(Theme.sub).lineLimit(1)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(Theme.card, in: Capsule())
+            .overlay(Capsule().stroke(Theme.stroke))
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(Theme.card, in: Capsule())
-        .overlay(Capsule().stroke(Theme.stroke))
     }
 }
 
@@ -108,12 +115,14 @@ struct DeviceIcon: View {
     var size: CGFloat = 44
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.softGradient)
-            RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).stroke(Color.white.opacity(0.08))
-            Image(systemName: os.symbol).font(.system(size: size * 0.42, weight: .medium)).foregroundStyle(.white)
+        WithPerceptionTracking {
+            ZStack {
+                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.softGradient)
+                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).stroke(Color.white.opacity(0.08))
+                Image(systemName: os.symbol).font(.system(size: size * 0.42, weight: .medium)).foregroundStyle(.white)
+            }
+            .frame(width: size, height: size)
         }
-        .frame(width: size, height: size)
     }
 }
 
@@ -123,41 +132,47 @@ struct ToastView: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(toast.text).font(.subheadline).foregroundStyle(.white).lineLimit(3)
-            if let a = toast.action {
-                Spacer(minLength: 4)
-                Button(a, action: action).font(.subheadline.weight(.bold)).foregroundStyle(Theme.c3)
+        WithPerceptionTracking {
+            HStack(spacing: 12) {
+                Text(toast.text).font(.subheadline).foregroundStyle(.white).lineLimit(3)
+                if let a = toast.action {
+                    Spacer(minLength: 4)
+                    Button(a, action: action).font(.subheadline.weight(.bold)).foregroundStyle(Theme.c3)
+                }
             }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.1)))
+            .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.1)))
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
-        .padding(.horizontal, 16)
     }
 }
 
 /// 在任意视图上叠一个提示条（AppModel.toast），几秒后自动消失
 struct ToastHost: ViewModifier {
-    @Bindable var app: AppModel
+    @Perception.Bindable var app: AppModel
 
     func body(content: Content) -> some View {
-        content.overlay(alignment: .bottom) {
-            if let t = app.toast {
-                ToastView(toast: t) {
-                    app.toastAction?()
-                    app.toast = nil
-                }
-                .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: t.id) {
-                    try? await Task.sleep(for: .seconds(t.action == nil ? 2.6 : 6))
-                    if app.toast?.id == t.id { withAnimation { app.toast = nil } }
+        WithPerceptionTracking {
+            content.overlay(alignment: .bottom) {
+                WithPerceptionTracking {
+                    if let t = app.toast {
+                        ToastView(toast: t) {
+                            app.toastAction?()
+                            app.toast = nil
+                        }
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .task(id: t.id) {
+                            try? await Task.sleep(for: .seconds(t.action == nil ? 2.6 : 6))
+                            if app.toast?.id == t.id { withAnimation { app.toast = nil } }
+                        }
+                    }
                 }
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: app.toast)
         }
-        .animation(.spring(duration: 0.35), value: app.toast)
     }
 }
 

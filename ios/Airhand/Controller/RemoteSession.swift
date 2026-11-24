@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// 远端光标：形状由被控端发来，位置由本机决定（触控板模式下本机画出来）
@@ -19,7 +19,7 @@ struct CursorState {
 /// * 对方断开了我们 / 换了控制码：`.ended`，不再重连。
 ///
 /// 和 Android 的 RemoteSession.kt 是同一套逻辑。
-@Observable
+@Perceptible
 final class RemoteSession {
     enum Phase: Equatable {
         case connecting, live, reconnecting(Problem), waitingHost(Problem?), failed(Problem), ended(Problem), closed
@@ -56,9 +56,9 @@ final class RemoteSession {
     private(set) var micState: String?
     private(set) var micOn = false
     /// 远端光标（UIKit 的画面直接观察，不经过 SwiftUI）
-    @ObservationIgnored var onCursor: ((CursorState) -> Void)?
-    @ObservationIgnored var onPhase: ((Phase) -> Void)?
-    @ObservationIgnored private(set) var cursor = CursorState()
+    @PerceptionIgnored var onCursor: ((CursorState) -> Void)?
+    @PerceptionIgnored var onPhase: ((Phase) -> Void)?
+    @PerceptionIgnored private(set) var cursor = CursorState()
 
     /// 对方的平台：连上之后以对方报告的为准，之前按系统名称猜
     var os: OsKind {
@@ -69,39 +69,39 @@ final class RemoteSession {
     /// 只能看（对方是 iPhone / iPad）
     var viewOnly: Bool { os == .ios }
 
-    @ObservationIgnored private weak var app: AppModel?
-    @ObservationIgnored private let client: ControllerClient
-    @ObservationIgnored private let saved: SavedDevice?
-    @ObservationIgnored private var resume: String?
-    @ObservationIgnored private var hostKey: String?
-    @ObservationIgnored private var pairing: String?
-    @ObservationIgnored private let wake = NSCondition()
-    @ObservationIgnored private var woken = false
-    @ObservationIgnored private var closed = false
-    @ObservationIgnored private var background = false
+    @PerceptionIgnored private weak var app: AppModel?
+    @PerceptionIgnored private let client: ControllerClient
+    @PerceptionIgnored private let saved: SavedDevice?
+    @PerceptionIgnored private var resume: String?
+    @PerceptionIgnored private var hostKey: String?
+    @PerceptionIgnored private var pairing: String?
+    @PerceptionIgnored private let wake = NSCondition()
+    @PerceptionIgnored private var woken = false
+    @PerceptionIgnored private var closed = false
+    @PerceptionIgnored private var background = false
     /// 远程画面不在屏幕上（回到了首页）：降到 5 fps，声音照常
-    @ObservationIgnored private var hidden = false
-    @ObservationIgnored private var connectedOnce = false
-    @ObservationIgnored private var handle: Int64 = 0
-    @ObservationIgnored private var sid: Int64 = -1
-    @ObservationIgnored private var cursorSlots: [Int: CursorState] = [:]
-    @ObservationIgnored let sync = AvSync()
-    @ObservationIgnored private(set) var decoder: VideoDecoder!
-    @ObservationIgnored private var audio: AudioPlayer?
-    @ObservationIgnored private var audioToken: Int64 = 0
-    @ObservationIgnored private let audioLock = NSLock()
-    @ObservationIgnored private var mic: MicCapture?
-    @ObservationIgnored private var sender: InputSender!
-    @ObservationIgnored private var sentSettings: Quality?
-    @ObservationIgnored private var sentAudio = false
-    @ObservationIgnored private var zoomShown: CGSize?
-    @ObservationIgnored private var zoomWanted: CGSize?
-    @ObservationIgnored private var zoomWork: DispatchWorkItem?
-    @ObservationIgnored private var frameLimit: (Codec, Int)?
-    @ObservationIgnored private var handlerIds: [UUID] = []
-    @ObservationIgnored private var grantName = ""
-    @ObservationIgnored private var grantOs = ""
-    @ObservationIgnored var onClipboardFiles: ((Int64, [JSON]) -> Void)?
+    @PerceptionIgnored private var hidden = false
+    @PerceptionIgnored private var connectedOnce = false
+    @PerceptionIgnored private var handle: Int64 = 0
+    @PerceptionIgnored private var sid: Int64 = -1
+    @PerceptionIgnored private var cursorSlots: [Int: CursorState] = [:]
+    @PerceptionIgnored let sync = AvSync()
+    @PerceptionIgnored private(set) var decoder: VideoDecoder!
+    @PerceptionIgnored private var audio: AudioPlayer?
+    @PerceptionIgnored private var audioToken: Int64 = 0
+    @PerceptionIgnored private let audioLock = NSLock()
+    @PerceptionIgnored private var mic: MicCapture?
+    @PerceptionIgnored private var sender: InputSender!
+    @PerceptionIgnored private var sentSettings: Quality?
+    @PerceptionIgnored private var sentAudio = false
+    @PerceptionIgnored private var zoomShown: CGSize?
+    @PerceptionIgnored private var zoomWanted: CGSize?
+    @PerceptionIgnored private var zoomWork: DispatchWorkItem?
+    @PerceptionIgnored private var frameLimit: (Codec, Int)?
+    @PerceptionIgnored private var handlerIds: [UUID] = []
+    @PerceptionIgnored private var grantName = ""
+    @PerceptionIgnored private var grantOs = ""
+    @PerceptionIgnored var onClipboardFiles: ((Int64, [JSON]) -> Void)?
 
     init(app: AppModel, code: String, resume: String?, hostKey: String?, pairing: String?) {
         self.app = app
@@ -350,7 +350,7 @@ final class RemoteSession {
         }
     }
 
-    @ObservationIgnored private var videoSizeCache: CGSize?
+    @PerceptionIgnored private var videoSizeCache: CGSize?
 
     private func handleEvent(_ e: JSON) {
         switch e.str("type") {

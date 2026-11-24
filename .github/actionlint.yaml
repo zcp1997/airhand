@@ -1,0 +1,5 @@
+# actionlint 1.7.12 predates GitHub's official hosted Xcode 27 image.
+# This only extends the linter's label catalog; it does not change runner routing.
+self-hosted-runner:
+  labels:
+    - xcode-27

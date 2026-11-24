@@ -3,9 +3,14 @@ name: Airhand
 options:
   bundleIdPrefix: app.airhand
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "16.6"
   createIntermediateGroups: true
   developmentLanguage: zh-Hans
+
+packages:
+  Perception:
+    url: https://github.com/pointfreeco/swift-perception
+    exactVersion: 2.0.12
 
 settings:
   base:
@@ -40,6 +45,8 @@ targets:
         script: '"$PROJECT_DIR/scripts/build-rust.sh" "$PLATFORM_NAME" release'
         basedOnDependencyAnalysis: false
     dependencies:
+      - package: Perception
+        product: Perception
       - target: AirhandBroadcast
         embed: true
       - sdk: VideoToolbox.framework
@@ -126,6 +133,8 @@ targets:
       - path: Tests
     dependencies:
       - target: Airhand
+      - package: Perception
+        product: Perception
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.airhand.ios.tests

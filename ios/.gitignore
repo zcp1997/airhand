@@ -1,8 +1,15 @@
 # 生成的：xcodegen generate、scripts/build-rust.sh、scripts/build-ipa.sh
-/Airhand.xcodeproj/
+/Airhand*.xcodeproj/
 /build/
 /native/target/
 /Airhand/Info.plist
 /Broadcast/Info.plist
 /Airhand/Airhand.entitlements
 /Broadcast/Broadcast.entitlements
+
+# Host-only core tests and SwiftPM dependency caches
+/.build/
+/.swiftpm/
+
+# Python validator test caches
+__pycache__/

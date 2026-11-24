@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import UIKit
 
@@ -32,70 +33,82 @@ struct GameEditor: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            let size = geo.size
-            ZStack {
-                Color.black.opacity(0.55).ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture { selected = nil }
-                dots(size)
-                guideLines(size)
-                ForEach(layout.items) { item in
-                    itemView(item, size)
-                }
-                toolbar
-                    .offset(x: toolbarOffset.width + toolbarDrag.width, y: toolbarOffset.height + toolbarDrag.height)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 8)
-                if layout.items.isEmpty {
-                    Text(L.t("game_empty_layout_hint")).font(.callout).foregroundStyle(Theme.sub)
-                }
-            }
-            .simultaneousGesture(
-                MagnifyGesture()
-                    .onChanged { v in
-                        guard let id = selected, let i = index(id) else { return }
-                        if pinchBase == nil {
-                            pinchBase = layout.items[i].size
-                            snapshot()
+        WithPerceptionTracking {
+            GeometryReader { geo in
+                WithPerceptionTracking {
+                    let size = geo.size
+                    ZStack {
+                        Color.black.opacity(0.55).ignoresSafeArea()
+                            .contentShape(Rectangle())
+                            .onTapGesture { selected = nil }
+                        dots(size)
+                        guideLines(size)
+                        ForEach(layout.items) { item in
+                            WithPerceptionTracking {
+                                itemView(item, size)
+                            }
                         }
-                        layout.items[i].size = min(max(pinchBase! * v.magnification, 36), 240)
+                        toolbar
+                            .offset(x: toolbarOffset.width + toolbarDrag.width, y: toolbarOffset.height + toolbarDrag.height)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .padding(.top, 8)
+                        if layout.items.isEmpty {
+                            Text(L.t("game_empty_layout_hint")).font(.callout).foregroundStyle(Theme.sub)
+                        }
                     }
-                    .onEnded { _ in pinchBase = nil }
-            )
-        }
-        .preferredColorScheme(.dark)
-        .sheet(item: Binding(get: { editing.map { EditingID(id: $0) } }, set: { editing = $0?.id })) { e in
-            if let i = index(e.id) {
-                ItemSettings(item: Binding(get: { layout.items[min(i, layout.items.count - 1)] }, set: { v in
-                    if let j = index(e.id) { layout.items[j] = v }
-                }), os: os, duplicate: { duplicate(e.id) }, delete: { delete(e.id) }, willChange: snapshot)
-                .presentationDetents([.medium, .large])
+                    .simultaneousGesture(
+                        MagnificationGesture()
+                            .onChanged { v in
+                                guard let id = selected, let i = index(id) else { return }
+                                if pinchBase == nil {
+                                    pinchBase = layout.items[i].size
+                                    snapshot()
+                                }
+                                layout.items[i].size = min(max(pinchBase! * v, 36), 240)
+                            }
+                            .onEnded { _ in pinchBase = nil }
+                    )
+                }
             }
-        }
-        .sheet(isPresented: $layoutSettings) {
-            LayoutSettings(layout: $layout, willChange: snapshot).presentationDetents([.medium])
-        }
-        .sheet(isPresented: $picking) {
-            KeyPicker(initial: [], os: os) { keys in
-                snapshot()
-                let item = GameTemplates.button(0.5, 0.5, 60, keys)
-                layout.items.append(item)
-                selected = item.id
+            .preferredColorScheme(.dark)
+            .sheet(item: Binding(get: { editing.map { EditingID(id: $0) } }, set: { editing = $0?.id })) { e in
+                WithPerceptionTracking {
+                    if let i = index(e.id) {
+                        ItemSettings(item: Binding(get: { layout.items[min(i, layout.items.count - 1)] }, set: { v in
+                            if let j = index(e.id) { layout.items[j] = v }
+                        }), os: os, duplicate: { duplicate(e.id) }, delete: { delete(e.id) }, willChange: snapshot)
+                        .presentationDetents([.medium, .large])
+                    }
+                }
             }
-        }
-        .confirmationDialog(L.t("game_add"), isPresented: $adding, titleVisibility: .visible) {
-            Button(L.t("game_key")) { picking = true }
-            Button(L.t("game_stick")) {
-                snapshot()
-                let s = GameTemplates.stick(0.2, 0.68, GameItem.wasd, sprint: "ShiftLeft")
-                layout.items.append(s)
-                selected = s.id
+            .sheet(isPresented: $layoutSettings) {
+                WithPerceptionTracking {
+                    LayoutSettings(layout: $layout, willChange: snapshot).presentationDetents([.medium])
+                }
             }
+            .sheet(isPresented: $picking) {
+                WithPerceptionTracking {
+                    KeyPicker(initial: [], os: os) { keys in
+                        snapshot()
+                        let item = GameTemplates.button(0.5, 0.5, 60, keys)
+                        layout.items.append(item)
+                        selected = item.id
+                    }
+                }
+            }
+            .confirmationDialog(L.t("game_add"), isPresented: $adding, titleVisibility: .visible) {
+                Button(L.t("game_key")) { picking = true }
+                Button(L.t("game_stick")) {
+                    snapshot()
+                    let s = GameTemplates.stick(0.2, 0.68, GameItem.wasd, sprint: "ShiftLeft")
+                    layout.items.append(s)
+                    selected = s.id
+                }
+            }
+            .confirmationDialog(L.t("game_discard_title"), isPresented: $confirmDiscard, titleVisibility: .visible) {
+                Button(L.t("game_discard"), role: .destructive) { done() }
+            } message: { Text(L.t("game_discard_text")) }
         }
-        .confirmationDialog(L.t("game_discard_title"), isPresented: $confirmDiscard, titleVisibility: .visible) {
-            Button(L.t("game_discard"), role: .destructive) { done() }
-        } message: { Text(L.t("game_discard_text")) }
     }
 
     private struct EditingID: Identifiable { let id: UUID }
@@ -224,7 +237,9 @@ struct GameEditor: View {
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(alignment: .bottom) {
-            Text(L.t("game_edit_hint")).font(.caption2).foregroundStyle(Theme.sub).offset(y: 22)
+            WithPerceptionTracking {
+                Text(L.t("game_edit_hint")).font(.caption2).foregroundStyle(Theme.sub).offset(y: 22)
+            }
         }
     }
 
@@ -269,69 +284,75 @@ struct ItemSettings: View {
     private let sprintKeys = ["", "ShiftLeft", "ControlLeft", "AltLeft", "Space"]
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if item.kind == .button {
-                    Section {
-                        HStack {
-                            Text(L.t("game_sends"))
-                            Spacer()
-                            Text(item.keys.map { GameItem.keyLabel($0, os: os) }.joined(separator: " + ")).foregroundStyle(Theme.sub)
-                            Button(L.t("game_change")) { picking = true }
+        WithPerceptionTracking {
+            NavigationStack {
+                Form {
+                    if item.kind == .button {
+                        Section {
+                            HStack {
+                                Text(L.t("game_sends"))
+                                Spacer()
+                                Text(item.keys.map { GameItem.keyLabel($0, os: os) }.joined(separator: " + ")).foregroundStyle(Theme.sub)
+                                Button(L.t("game_change")) { picking = true }
+                            }
+                            TextField(L.t("game_label"), text: Binding(get: { item.label }, set: { item.label = String($0.prefix(6)) }),
+                                      prompt: Text(L.t("game_label_hint")))
+                            Picker(L.t("game_mode"), selection: change(\.toggle)) {
+                                Text(L.t("game_mode_hold")).tag(false)
+                                Text(L.t("game_mode_toggle")).tag(true)
+                            }
+                            Toggle(isOn: change(\.look)) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(L.t("game_look"))
+                                    Text(L.t("game_look_desc")).font(.caption).foregroundStyle(Theme.sub)
+                                }
+                            }
                         }
-                        TextField(L.t("game_label"), text: Binding(get: { item.label }, set: { item.label = String($0.prefix(6)) }),
-                                  prompt: Text(L.t("game_label_hint")))
-                        Picker(L.t("game_mode"), selection: change(\.toggle)) {
-                            Text(L.t("game_mode_hold")).tag(false)
-                            Text(L.t("game_mode_toggle")).tag(true)
-                        }
-                        Toggle(isOn: change(\.look)) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L.t("game_look"))
-                                Text(L.t("game_look_desc")).font(.caption).foregroundStyle(Theme.sub)
+                    } else {
+                        Section {
+                            Picker(L.t("game_stick_keys"), selection: change(\.keys)) {
+                                Text("W A S D").tag(GameItem.wasd)
+                                Text("↑ ← ↓ →").tag(GameItem.arrows)
+                            }
+                            Picker(L.t("game_sprint"), selection: Binding(get: { item.sprint ?? "" }, set: { v in
+                                willChange()
+                                item.sprint = v.isEmpty ? nil : v
+                            })) {
+                                ForEach(sprintKeys, id: \.self) { k in
+                                    WithPerceptionTracking {
+                                        Text(k.isEmpty ? L.t("game_sprint_none") : KeyMap.label(k, os: os)).tag(k)
+                                    }
+                                }
+                            }
+                            Toggle(isOn: change(\.floating)) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(L.t("game_floating"))
+                                    Text(L.t("game_floating_desc")).font(.caption).foregroundStyle(Theme.sub)
+                                }
                             }
                         }
                     }
-                } else {
+                    Section(L.t("game_size")) {
+                        Slider(value: $item.size, in: 36...240, step: 2) { editing in if editing { willChange() } }
+                    }
                     Section {
-                        Picker(L.t("game_stick_keys"), selection: change(\.keys)) {
-                            Text("W A S D").tag(GameItem.wasd)
-                            Text("↑ ← ↓ →").tag(GameItem.arrows)
-                        }
-                        Picker(L.t("game_sprint"), selection: Binding(get: { item.sprint ?? "" }, set: { v in
-                            willChange()
-                            item.sprint = v.isEmpty ? nil : v
-                        })) {
-                            ForEach(sprintKeys, id: \.self) { k in
-                                Text(k.isEmpty ? L.t("game_sprint_none") : KeyMap.label(k, os: os)).tag(k)
-                            }
-                        }
-                        Toggle(isOn: change(\.floating)) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L.t("game_floating"))
-                                Text(L.t("game_floating_desc")).font(.caption).foregroundStyle(Theme.sub)
-                            }
-                        }
+                        Button { duplicate() } label: { WithPerceptionTracking { Label(L.t("game_duplicate_item"), systemImage: "plus.square.on.square") } }
+                        Button(role: .destructive) { delete() } label: { WithPerceptionTracking { Label(L.t("delete"), systemImage: "trash") } }
                     }
                 }
-                Section(L.t("game_size")) {
-                    Slider(value: $item.size, in: 36...240, step: 2) { editing in if editing { willChange() } }
-                }
-                Section {
-                    Button { duplicate() } label: { Label(L.t("game_duplicate_item"), systemImage: "plus.square.on.square") }
-                    Button(role: .destructive) { delete() } label: { Label(L.t("delete"), systemImage: "trash") }
-                }
+                .scrollContentBackground(.hidden)
+                .background(Theme.bg)
+                .navigationTitle(item.kind == .stick ? L.t("game_stick") : L.t("game_key"))
+                .navigationBarTitleDisplayMode(.inline)
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle(item.kind == .stick ? L.t("game_stick") : L.t("game_key"))
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .preferredColorScheme(.dark)
-        .sheet(isPresented: $picking) {
-            KeyPicker(initial: item.keys, os: os) { keys in
-                willChange()
-                item.keys = keys
+            .preferredColorScheme(.dark)
+            .sheet(isPresented: $picking) {
+                WithPerceptionTracking {
+                    KeyPicker(initial: item.keys, os: os) { keys in
+                        willChange()
+                        item.keys = keys
+                    }
+                }
             }
         }
     }
@@ -350,25 +371,27 @@ struct LayoutSettings: View {
     let willChange: () -> Void
 
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField(L.t("game_layout_name"), text: $layout.name)
-                VStack(alignment: .leading) {
-                    Text(L.t("game_opacity"))
-                    Slider(value: $layout.opacity, in: 0.15...1) { e in if e { willChange() } }
+        WithPerceptionTracking {
+            NavigationStack {
+                Form {
+                    TextField(L.t("game_layout_name"), text: $layout.name)
+                    VStack(alignment: .leading) {
+                        Text(L.t("game_opacity"))
+                        Slider(value: $layout.opacity, in: 0.15...1) { e in if e { willChange() } }
+                    }
+                    VStack(alignment: .leading) {
+                        Text(L.t("game_look_speed") + String(format: " · %.1f×", layout.lookSpeed))
+                        Slider(value: $layout.lookSpeed, in: 0.3...3, step: 0.1) { e in if e { willChange() } }
+                    }
+                    Toggle(L.t("game_haptics"), isOn: $layout.haptics)
                 }
-                VStack(alignment: .leading) {
-                    Text(L.t("game_look_speed") + String(format: " · %.1f×", layout.lookSpeed))
-                    Slider(value: $layout.lookSpeed, in: 0.3...3, step: 0.1) { e in if e { willChange() } }
-                }
-                Toggle(L.t("game_haptics"), isOn: $layout.haptics)
+                .scrollContentBackground(.hidden)
+                .background(Theme.bg)
+                .navigationTitle(L.t("game_layout_settings"))
+                .navigationBarTitleDisplayMode(.inline)
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle(L.t("game_layout_settings"))
-            .navigationBarTitleDisplayMode(.inline)
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 }
 
@@ -398,36 +421,42 @@ struct KeyPicker: View {
     ]
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(L.t("game_pick_combo")).font(.footnote).foregroundStyle(Theme.sub)
-                    ForEach(groups, id: \.0) { title, list in
-                        VStack(alignment: .leading, spacing: 8) {
-                            SectionTitle(text: L.t(title))
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
-                                ForEach(list, id: \.self) { k in chip(k) }
+        WithPerceptionTracking {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text(L.t("game_pick_combo")).font(.footnote).foregroundStyle(Theme.sub)
+                        ForEach(groups, id: \.0) { title, list in
+                            WithPerceptionTracking {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    SectionTitle(text: L.t(title))
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 8)], spacing: 8) {
+                                        ForEach(list, id: \.self) { k in WithPerceptionTracking { chip(k) } }
+                                    }
+                                }
                             }
                         }
                     }
+                    .padding(18)
                 }
-                .padding(18)
-            }
-            .background(Theme.bg)
-            .navigationTitle(keys.isEmpty ? L.t("game_pick_title") : keys.map { GameItem.keyLabel($0, os: os) }.joined(separator: " + "))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(L.t("cancel")) { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L.t("ok")) {
-                        picked(keys)
-                        dismiss()
+                .background(Theme.bg)
+                .navigationTitle(keys.isEmpty ? L.t("game_pick_title") : keys.map { GameItem.keyLabel($0, os: os) }.joined(separator: " + "))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { WithPerceptionTracking { Button(L.t("cancel")) { dismiss() } } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        WithPerceptionTracking {
+                            Button(L.t("ok")) {
+                                picked(keys)
+                                dismiss()
+                            }
+                            .disabled(keys.isEmpty)
+                        }
                     }
-                    .disabled(keys.isEmpty)
                 }
             }
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 
     private func chip(_ k: String) -> some View {
@@ -435,15 +464,17 @@ struct KeyPicker: View {
         return Button {
             if let i { keys.remove(at: i) } else if keys.count < 3 { keys.append(k) }
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Text(GameItem.keyLabel(k, os: os)).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-                    .frame(maxWidth: .infinity, minHeight: 42)
-                    .background(i != nil ? AnyShapeStyle(Theme.gradient) : AnyShapeStyle(Theme.card), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.stroke))
-                if let i {
-                    Text("\(i + 1)").font(.caption2.weight(.bold)).foregroundStyle(Theme.bg).frame(width: 16, height: 16)
-                        .background(Circle().fill(.white)).offset(x: 4, y: -4)
+            WithPerceptionTracking {
+                ZStack(alignment: .topTrailing) {
+                    Text(GameItem.keyLabel(k, os: os)).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .background(i != nil ? AnyShapeStyle(Theme.gradient) : AnyShapeStyle(Theme.card), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.stroke))
+                    if let i {
+                        Text("\(i + 1)").font(.caption2.weight(.bold)).foregroundStyle(Theme.bg).frame(width: 16, height: 16)
+                            .background(Circle().fill(.white)).offset(x: 4, y: -4)
+                    }
                 }
             }
         }

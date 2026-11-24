@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import UIKit
 
@@ -8,39 +9,41 @@ struct SessionOverlay: View {
     let close: () -> Void
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(session.phase == .live ? 0.35 : 0.8).ignoresSafeArea()
-            VStack(spacing: 18) {
-                switch session.phase {
-                case .connecting:
-                    spinner(L.t("session_connecting", session.hostName))
-                    button(L.t("cancel"), close)
-                case .live:
-                    spinner(L.t("session_waiting_video"))
-                case .reconnecting:
-                    spinner(L.t("session_reconnecting"))
-                    button(L.t("disconnect"), close)
-                case .waitingHost:
-                    DeviceIcon(os: session.os, size: 64).opacity(0.7)
-                    Text(L.t("session_waiting_host", session.hostName)).font(.title3.weight(.semibold)).foregroundStyle(.white)
-                    Text(L.t("session_waiting_host_detail")).font(.subheadline).foregroundStyle(Theme.sub)
-                    HStack(spacing: 12) {
-                        button(L.t("retry")) { session.retryNow() }
+        WithPerceptionTracking {
+            ZStack {
+                Color.black.opacity(session.phase == .live ? 0.35 : 0.8).ignoresSafeArea()
+                VStack(spacing: 18) {
+                    switch session.phase {
+                    case .connecting:
+                        spinner(L.t("session_connecting", session.hostName))
+                        button(L.t("cancel"), close)
+                    case .live:
+                        spinner(L.t("session_waiting_video"))
+                    case .reconnecting:
+                        spinner(L.t("session_reconnecting"))
                         button(L.t("disconnect"), close)
+                    case .waitingHost:
+                        DeviceIcon(os: session.os, size: 64).opacity(0.7)
+                        Text(L.t("session_waiting_host", session.hostName)).font(.title3.weight(.semibold)).foregroundStyle(.white)
+                        Text(L.t("session_waiting_host_detail")).font(.subheadline).foregroundStyle(Theme.sub)
+                        HStack(spacing: 12) {
+                            button(L.t("retry")) { session.retryNow() }
+                            button(L.t("disconnect"), close)
+                        }
+                    case .ended(let p), .failed(let p):
+                        Image(systemName: "bolt.horizontal.circle").font(.system(size: 48)).foregroundStyle(Theme.sub)
+                        Text(L.t("session_ended")).font(.title3.weight(.semibold)).foregroundStyle(.white)
+                        Text(Messages.problem(p)).font(.subheadline).foregroundStyle(Theme.sub).multilineTextAlignment(.center)
+                        button(L.t("close"), close)
+                    case .closed:
+                        EmptyView()
                     }
-                case .ended(let p), .failed(let p):
-                    Image(systemName: "bolt.horizontal.circle").font(.system(size: 48)).foregroundStyle(Theme.sub)
-                    Text(L.t("session_ended")).font(.title3.weight(.semibold)).foregroundStyle(.white)
-                    Text(Messages.problem(p)).font(.subheadline).foregroundStyle(Theme.sub).multilineTextAlignment(.center)
-                    button(L.t("close"), close)
-                case .closed:
-                    EmptyView()
                 }
+                .padding(32)
+                .frame(maxWidth: 460)
             }
-            .padding(32)
-            .frame(maxWidth: 460)
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 
     private func spinner(_ text: String) -> some View {
@@ -72,43 +75,49 @@ struct SessionBanner: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            if let t = app.toast {
-                HStack(spacing: 10) {
-                    Text(t.text).font(.footnote.weight(.medium)).foregroundStyle(.white)
-                    if let a = t.action {
-                        Button(a) {
-                            app.toastAction?()
-                            app.toast = nil
-                        }.font(.footnote.weight(.bold)).foregroundStyle(Theme.c3)
+        WithPerceptionTracking {
+            VStack(spacing: 8) {
+                if let t = app.toast {
+                    HStack(spacing: 10) {
+                        Text(t.text).font(.footnote.weight(.medium)).foregroundStyle(.white)
+                        if let a = t.action {
+                            Button(a) {
+                                app.toastAction?()
+                                app.toast = nil
+                            }.font(.footnote.weight(.bold)).foregroundStyle(Theme.c3)
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: t.id) {
+                        try? await Task.sleep(for: .seconds(t.action == nil ? 2.4 : 6))
+                        if app.toast?.id == t.id { withAnimation { app.toast = nil } }
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 9)
-                .background(.ultraThinMaterial, in: Capsule())
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .task(id: t.id) {
-                    try? await Task.sleep(for: .seconds(t.action == nil ? 2.4 : 6))
-                    if app.toast?.id == t.id { withAnimation { app.toast = nil } }
-                }
-            }
-            ForEach(lines, id: \.0) { k, text, color in
-                Button {
-                    withAnimation { _ = hidden.insert(k) }
-                } label: {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: color == Theme.warn ? "exclamationmark.triangle.fill" : "eye").foregroundStyle(color)
-                        Text(text).font(.footnote).foregroundStyle(.white).multilineTextAlignment(.leading)
-                        Image(systemName: "xmark").font(.caption2).foregroundStyle(Theme.faint)
+                ForEach(lines, id: \.0) { k, text, color in
+                    WithPerceptionTracking {
+                        Button {
+                            withAnimation { _ = hidden.insert(k) }
+                        } label: {
+                            WithPerceptionTracking {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: color == Theme.warn ? "exclamationmark.triangle.fill" : "eye").foregroundStyle(color)
+                                    Text(text).font(.footnote).foregroundStyle(.white).multilineTextAlignment(.leading)
+                                    Image(systemName: "xmark").font(.caption2).foregroundStyle(Theme.faint)
+                                }
+                                .padding(.horizontal, 14).padding(.vertical, 10)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
             }
+            .frame(maxWidth: 560)
+            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: app.toast)
+            .preferredColorScheme(.dark)
         }
-        .frame(maxWidth: 560)
-        .animation(.spring(duration: 0.3), value: app.toast)
-        .preferredColorScheme(.dark)
     }
 }
 
@@ -117,24 +126,28 @@ struct NavKeysBar: View {
     let action: (SystemAction) -> Void
 
     var body: some View {
-        HStack {
-            Spacer()
-            key("arrowtriangle.backward.fill", .back)
-            Spacer()
-            key("circle", .home)
-            Spacer()
-            key("square", .recents)
-            Spacer()
+        WithPerceptionTracking {
+            HStack {
+                Spacer()
+                key("arrowtriangle.backward.fill", .back)
+                Spacer()
+                key("circle", .home)
+                Spacer()
+                key("square", .recents)
+                Spacer()
+            }
+            .frame(height: 52)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(Color.black)
         }
-        .frame(height: 52)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.black)
     }
 
     private func key(_ icon: String, _ a: SystemAction) -> some View {
         Button { action(a) } label: {
-            Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
-                .frame(width: 64, height: 44).contentShape(Rectangle())
+            WithPerceptionTracking {
+                Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 64, height: 44).contentShape(Rectangle())
+            }
         }
         .accessibilityLabel(L.t("action_\(a.rawValue)"))
     }
@@ -151,44 +164,48 @@ struct KeyBar: View {
         + (1...12).map { "F\($0)" }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if !state.composing.isEmpty {
-                Text(state.composing).font(.callout).foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 4)
-                    .background(Theme.c2.opacity(0.5), in: Capsule())
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8).padding(.bottom, 4)
-            }
-            HStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(keys, id: \.self) { k in
-                            if k.hasPrefix("MOD:") {
-                                let m = String(k.dropFirst(4))
-                                let st = state.state(m)
-                                keyButton(KeyMap.label(m, os: os), highlight: st) {
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    state.toggle(m)
-                                }
-                            } else {
-                                keyButton(KeyMap.label(k, os: os), highlight: .off) {
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
-                                    state.press(k)
+        WithPerceptionTracking {
+            VStack(spacing: 0) {
+                if !state.composing.isEmpty {
+                    Text(state.composing).font(.callout).foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 4)
+                        .background(Theme.c2.opacity(0.5), in: Capsule())
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8).padding(.bottom, 4)
+                }
+                HStack(spacing: 0) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(keys, id: \.self) { k in
+                                WithPerceptionTracking {
+                                    if k.hasPrefix("MOD:") {
+                                        let m = String(k.dropFirst(4))
+                                        let st = state.state(m)
+                                        keyButton(KeyMap.label(m, os: os), highlight: st) {
+                                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                            state.toggle(m)
+                                        }
+                                    } else {
+                                        keyButton(KeyMap.label(k, os: os), highlight: .off) {
+                                            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
+                                            state.press(k)
+                                        }
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal, 8)
                     }
-                    .padding(.horizontal, 8)
+                    Button(action: hide) {
+                        Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white).frame(width: 46, height: 40)
+                    }
+                    .accessibilityLabel(L.t("hide_keyboard"))
                 }
-                Button(action: hide) {
-                    Image(systemName: "keyboard.chevron.compact.down").font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white).frame(width: 46, height: 40)
-                }
-                .accessibilityLabel(L.t("hide_keyboard"))
+                .frame(height: 50)
+                .background(.ultraThinMaterial)
             }
-            .frame(height: 50)
-            .background(.ultraThinMaterial)
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 
     private func keyButton(_ label: String, highlight: KeyboardState.Sticky, _ f: @escaping () -> Void) -> some View {
@@ -200,7 +217,9 @@ struct KeyBar: View {
                         .fill(highlight == .off ? Color.white.opacity(0.12) : (highlight == .locked ? Theme.c2 : Theme.c2.opacity(0.55)))
                 )
                 .overlay(alignment: .bottom) {
-                    if highlight == .locked { Capsule().fill(.white).frame(width: 14, height: 2).padding(.bottom, 3) }
+                    WithPerceptionTracking {
+                        if highlight == .locked { Capsule().fill(.white).frame(width: 14, height: 2).padding(.bottom, 3) }
+                    }
                 }
         }
         .buttonStyle(.plain)
@@ -241,29 +260,33 @@ struct GestureTips: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(rows, id: \.1) { icon, g, what in
-                        HStack(spacing: 14) {
-                            Image(systemName: icon).font(.title3).foregroundStyle(Theme.c3).frame(width: 34)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L.t(g)).font(.headline)
-                                Text(L.t(what)).font(.subheadline).foregroundStyle(Theme.sub)
+        WithPerceptionTracking {
+            NavigationStack {
+                List {
+                    Section {
+                        ForEach(rows, id: \.1) { icon, g, what in
+                            WithPerceptionTracking {
+                                HStack(spacing: 14) {
+                                    Image(systemName: icon).font(.title3).foregroundStyle(Theme.c3).frame(width: 34)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L.t(g)).font(.headline)
+                                        Text(L.t(what)).font(.subheadline).foregroundStyle(Theme.sub)
+                                    }
+                                }
+                                .padding(.vertical, 4)
                             }
                         }
-                        .padding(.vertical, 4)
+                    } footer: {
+                        Text(L.t("tips_menu"))
                     }
-                } footer: {
-                    Text(L.t("tips_menu"))
                 }
+                .scrollContentBackground(.hidden)
+                .background(Theme.bg)
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { WithPerceptionTracking { Button(L.t("done")) { dismiss() } } } }
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(L.t("done")) { dismiss() } } }
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 }

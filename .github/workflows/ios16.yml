@@ -1,0 +1,134 @@
+name: iOS 16 candidate IPA
+
+on:
+  push:
+    branches: [compat/ios-16.6]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios16-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: 1.93.0
+  XCODE_VERSION: '27.2'
+  XCODEGEN_VERSION: 2.48.0
+
+jobs:
+  candidate:
+    if: github.repository == 'zcp1997/airhand' && github.ref == 'refs/heads/compat/ios-16.6'
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Select and verify toolchain
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          xcodebuild -version | tee /tmp/airhand-xcode-version.txt
+          test "$(xcodebuild -version | head -1)" = "Xcode ${XCODE_VERSION}"
+          swift --version
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup override set "$RUST_VERSION"
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          rustc --version
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip" -o /tmp/airhand-xcodegen.zip
+          echo '620c9f0dc10849f94728ab5df52d225ebab8187439dd6fee1925e59e80dff892  /tmp/airhand-xcodegen.zip' | shasum -a 256 -c -
+          unzip -q /tmp/airhand-xcodegen.zip -d /tmp/airhand-xcodegen
+          echo /tmp/airhand-xcodegen/xcodegen/bin >> "$GITHUB_PATH"
+          test "$(/tmp/airhand-xcodegen/xcodegen/bin/xcodegen --version)" = "Version: ${XCODEGEN_VERSION}"
+          mkdir -p ios/build/logs
+          {
+            echo "Source: $GITHUB_SHA"
+            xcodebuild -version
+            swift --version
+            rustc --version
+            /tmp/airhand-xcodegen/xcodegen/bin/xcodegen --version
+            cat ios/Package.resolved
+          } | tee ios/build/logs/toolchain.txt
+
+      - name: Test production Swift core and IPA checker
+        run: |
+          set -euo pipefail
+          swift run --package-path ios --build-system native --force-resolved-versions AirhandCoreSelfTest 2>&1 | tee ios/build/logs/swift-core.log
+          python3 -m unittest discover -s ios/scripts/tests -v 2>&1 | tee ios/build/logs/ipa-validator-tests.log
+          for script in ios/scripts/*.sh; do bash -n "$script"; done
+
+      - name: Test on available iOS simulator
+        run: |
+          set -euo pipefail
+          cd ios
+          scripts/prepare-project.sh
+          xcrun simctl list devices available --json > build/simulators.json
+          simulator="$(python3 - <<'PY'
+          import json
+          data = json.load(open('build/simulators.json'))
+          devices = [d for runtime, group in data['devices'].items() if 'iOS' in runtime for d in group if d.get('isAvailable') and d['name'].startswith('iPhone')]
+          print(devices[0]['udid'] if devices else '')
+          PY
+          )"
+          if [ -z "$simulator" ]; then
+            echo 'C04 NOT RUN: runner has no available iOS simulator; host core tests passed. G3 remains NOT RUN.' | tee build/logs/simulator-status.txt
+          else
+            scripts/build-rust.sh iphonesimulator release 2>&1 | tee build/logs/simulator-rust.log
+            xcodebuild -project Airhand.xcodeproj -scheme Airhand -configuration Debug \
+              -destination "platform=iOS Simulator,id=$simulator" -derivedDataPath build/dd-tests \
+              -resultBundlePath build/ios-tests.xcresult -parallel-testing-enabled NO \
+              -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO test 2>&1 | tee build/logs/simulator-tests.log
+            echo "C04 PASS on simulator $simulator; this is not iOS16.6.1 device validation." | tee build/logs/simulator-status.txt
+          fi
+          python3 scripts/check-package-lock.py Airhand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+      - name: Build arm64 Release IPA
+        run: |
+          set -euo pipefail
+          ios/scripts/build-ipa.sh 2>&1 | tee ios/build/logs/build-ipa.log
+
+      - name: Verify candidate IPA
+        run: |
+          set -euo pipefail
+          python3 ios/scripts/verify-ipa.py ios/build/Airhand.ipa | tee ios/build/logs/ipa-verification.json
+          mkdir -p dist
+          cp ios/build/Airhand.ipa "dist/Airhand_ios16_${GITHUB_SHA:0:12}_unsigned.ipa"
+          shasum -a 256 dist/*.ipa > dist/SHA256SUMS.txt
+          {
+            echo '### iOS 16 candidate IPA'
+            echo "- Source: $GITHUB_SHA"
+            echo '- Minimum system: iOS 16.6; architecture: arm64'
+            echo '- Xcode: 27.2; Rust: 1.93.0; XcodeGen: 2.48.0; Perception: 2.0.12'
+            echo '- G3: NOT RUN. Install and validate on iOS16.6.1 + TrollStore.'
+            cat dist/SHA256SUMS.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verified candidate only
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: Airhand-ios16-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ios16-diagnostics-${{ github.sha }}
+          path: |
+            ios/build/logs/
+            ios/build/ios-tests.xcresult/
+          if-no-files-found: warn
+          retention-days: 7

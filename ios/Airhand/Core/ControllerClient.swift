@@ -1,24 +1,24 @@
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// 控制端与中转服务器的连接（Rust 的 `ControllerService`）：应用在前台、或者有会话时保持连接，
 /// 掉线后 Rust 那边自动重连。应用退到后台、也没有会话一段时间后断开，省电。
-@Observable
+@Perceptible
 final class ControllerClient {
     private(set) var server: ServerState = .connecting
     /// 设置不完整（没有服务器地址）等启动失败的原因
     private(set) var startError: String?
 
-    @ObservationIgnored private let lock = NSLock()
-    @ObservationIgnored private var _handle: Int64 = 0
-    @ObservationIgnored private var foreground = false
-    @ObservationIgnored private var users = 0
-    @ObservationIgnored private var stopWork: DispatchWorkItem?
-    @ObservationIgnored private let settings: () -> AppSettings
-    @ObservationIgnored private let learnTrust: (String, String) -> Void
-    @ObservationIgnored private var hostOnlineHandlers: [UUID: (String) -> Void] = [:]
-    @ObservationIgnored private var serverHandlers: [UUID: (ServerState) -> Void] = [:]
+    @PerceptionIgnored private let lock = NSLock()
+    @PerceptionIgnored private var _handle: Int64 = 0
+    @PerceptionIgnored private var foreground = false
+    @PerceptionIgnored private var users = 0
+    @PerceptionIgnored private var stopWork: DispatchWorkItem?
+    @PerceptionIgnored private let settings: () -> AppSettings
+    @PerceptionIgnored private let learnTrust: (String, String) -> Void
+    @PerceptionIgnored private var hostOnlineHandlers: [UUID: (String) -> Void] = [:]
+    @PerceptionIgnored private var serverHandlers: [UUID: (ServerState) -> Void] = [:]
 
     init(settings: @escaping () -> AppSettings, learnTrust: @escaping (String, String) -> Void) {
         self.settings = settings
@@ -29,7 +29,7 @@ final class ControllerClient {
     var handle: Int64 { lock.lock(); defer { lock.unlock() }; return _handle }
 
     /// 当前的服务器状态（任意线程）
-    @ObservationIgnored private var _state: ServerState = .connecting
+    @PerceptionIgnored private var _state: ServerState = .connecting
     var state: ServerState { lock.lock(); defer { lock.unlock() }; return _state }
 
     func onHostOnline(_ f: @escaping (String) -> Void) -> UUID {

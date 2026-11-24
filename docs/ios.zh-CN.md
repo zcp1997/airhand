@@ -2,7 +2,7 @@
 
 [← 返回 README](../README.zh-CN.md) · [English](ios.md)
 
-一个 App（`ios/`），iPhone 和 iPad 通用，iOS / iPadOS 17 及以上：
+一个 App（`ios/`），iPhone 和 iPad 通用，iOS / iPadOS 16.6 及以上：
 
 | 页签 | 能做什么 |
 |---|---|
@@ -82,7 +82,7 @@
 
 需要一台 Mac：
 
-- Xcode 27 或更新（带 iOS SDK；只能装在 Apple 芯片、macOS 26.6 或更新的 Mac 上；装好的应用仍然支持 iOS 17 及以上）
+- Xcode 27 或更新（带 iOS SDK；只能装在 Apple 芯片、macOS 26.6 或更新的 Mac 上；装好的应用仍然支持 iOS 16.6 及以上）
 - Rust（[rustup](https://rustup.rs)）和两个目标：`rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)（`brew install xcodegen`，或者下载它的发布包）：`ios/project.yml` 生成 Xcode 工程
 
@@ -184,3 +184,20 @@ cargo run --release --example probe -- <控制码> 8 --audio --pairing <配对�
 - 读本机剪贴板（菜单 → 剪贴板）时 iOS 会弹一次“允许粘贴”
 - 局域网直连要“本地网络”权限，第一次直连时系统会问；不允许的话画面一直走中转（或者公网 IPv6）
 - 在只有 IPv6 的网络（例如部分移动网络的 NAT64）上，服务器地址请填域名：填 IPv4 地址时系统不会合成 NAT64 地址，连不上
+
+## 本 Fork 的 iOS 16.6.1 候选构建
+
+本分支最低部署目标为 iOS 16.6，面向已有 TrollStore 的 iOS 16.6.1 设备。保留屏幕广播扩展和 App Group；不需要 Apple 证书。生成包为 ad-hoc 签名候选包，不能据编译成功宣称真机兼容已经验收。安装时保持同一 Bundle ID，优先覆盖更新，避免卸载删除身份和配对数据。
+
+验收规则见 [验收标准与安全闸口](ios16-acceptance.zh-CN.md)，实现方式见 [增量设计](ios16-design.zh-CN.md)。G1 本地核心测试和独立 QA 通过后，推送 `compat/ios-16.6` 至个人 Fork；Actions 的 **iOS 16 candidate IPA** 工作流仅编译 iOS。也可在该分支手动运行。服务器地址和指纹可留空，安装后在设置中配置。下载同一次运行的 `Airhand-ios16-<提交SHA>` Artifact，核对 `SHA256SUMS.txt` 后由 TrollStore 安装。
+
+工作流固定 Xcode 27.2、Rust 1.93.0、XcodeGen 2.48.0、Perception 2.0.12 和提交的 SwiftPM pins。先运行生产 Swift 纯逻辑测试和新系统模拟器测试，再构建设备 arm64 Release，逐个校验二进制最低系统、平台、签名和权限，成功才上传 IPA。完整日志另存诊断 Artifact。无 iOS16 模拟器时，明确保留真机待验收状态。
+
+本机核心验证：
+
+```bash
+# 需要 Rust 1.93.0、Swift 6.4、XcodeGen、actionlint；不要求完整 Xcode。
+ios/scripts/check-ios16.sh
+```
+
+这些测试直接编译生产协议、手势、音画同步和状态代码，并运行真实 Rust 安全/QUIC/C ABI 回归。它们不访问手机、不读写用户 App Group，也不替代 iOS16 真机音视频、蓝牙、权限和广播验收。

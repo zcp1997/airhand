@@ -304,4 +304,33 @@ final class GestureTests: XCTestCase {
         g.up(Gestures.P(id: 1, x: 120, y: 100), 32)
         XCTAssertEqual(o.events, ["touch-down", "touch-move", "touch-up"])
     }
+
+    func testCancelReleasesAnActiveDragExactlyOnce() {
+        let out = Out()
+        let gestures = Gestures()
+        gestures.out = out
+        gestures.mode = .touch
+        gestures.down(.init(id: 1, x: 100, y: 100), 0)
+        gestures.move([.init(id: 1, x: 160, y: 100)], 16)
+        XCTAssertTrue(out.events.contains("left↓"))
+        gestures.cancel()
+        gestures.cancel()
+        XCTAssertEqual(out.events.filter { $0 == "left↑" }.count, 1)
+        XCTAssertFalse(gestures.pressing)
+    }
+
+    func testCancelReleasesEveryMultitouchFinger() {
+        let out = Out()
+        let gestures = Gestures()
+        gestures.out = out
+        gestures.mode = .multitouch
+        let first = Gestures.P(id: 1, x: 100, y: 100)
+        let second = Gestures.P(id: 2, x: 200, y: 100)
+        gestures.down(first, 0)
+        gestures.pointerDown(second, [first, second], 10)
+        gestures.cancel()
+        gestures.cancel()
+        XCTAssertEqual(out.events.filter { $0 == "touch-down" }.count, 2)
+        XCTAssertEqual(out.events.filter { $0 == "touch-cancel" }.count, 2)
+    }
 }

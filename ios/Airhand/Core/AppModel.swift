@@ -1,9 +1,9 @@
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// 整个应用的状态：设置、我的设备、与服务器的连接、当前的远程会话、本机的共享状态
-@Observable
+@Perceptible
 final class AppModel {
     static let shared = AppModel()
 
@@ -13,7 +13,7 @@ final class AppModel {
 
     let devices = DeviceStore()
     let games = GameStore()
-    @ObservationIgnored private(set) var controller: ControllerClient!
+    @PerceptionIgnored private(set) var controller: ControllerClient!
 
     /// 当前的远程会话（同一时间一个，和 Android 一样）
     var session: RemoteSession?
@@ -52,8 +52,8 @@ final class AppModel {
         static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
     }
 
-    @ObservationIgnored var toastAction: (() -> Void)?
-    @ObservationIgnored private var phaseWatch: Timer?
+    @PerceptionIgnored var toastAction: (() -> Void)?
+    @PerceptionIgnored private var phaseWatch: Timer?
 
     private init() {
         settings = AppSettings.load()

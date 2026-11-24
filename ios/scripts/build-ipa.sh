@@ -11,8 +11,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
 
-XCODEGEN="$(command -v xcodegen || echo "$HOME/airhand-ios-setup/xcodegen/bin/xcodegen")"
-"$XCODEGEN" generate >/dev/null
+scripts/prepare-project.sh
+mkdir -p build/logs
+# Only previously resolved, pinned macro dependencies are permitted in headless builds.
+PACKAGE_FLAGS=(-disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation)
 
 SERVER="${AIRHAND_SERVER:-}"
 FP="${AIRHAND_SERVER_FP:-}"
@@ -24,10 +26,10 @@ scripts/build-rust.sh iphoneos release
 if [ -n "${TEAM_ID:-}" ]; then
   METHOD="${EXPORT_METHOD:-development}"
   rm -rf build/Airhand.xcarchive build/export
-  xcodebuild -project Airhand.xcodeproj -scheme Airhand -configuration Release -sdk iphoneos \
+  xcodebuild -project Airhand.xcodeproj -scheme Airhand "${PACKAGE_FLAGS[@]}" -configuration Release -sdk iphoneos \
     -destination 'generic/platform=iOS' -archivePath build/Airhand.xcarchive \
     DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development" \
-    AIRHAND_SERVER="$SERVER" AIRHAND_SERVER_FP="$FP" -allowProvisioningUpdates archive | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)"
+    AIRHAND_SERVER="$SERVER" AIRHAND_SERVER_FP="$FP" -allowProvisioningUpdates archive 2>&1 | tee build/logs/archive.log
   cat > build/ExportOptions.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -38,16 +40,18 @@ if [ -n "${TEAM_ID:-}" ]; then
 </dict></plist>
 EOF
   xcodebuild -exportArchive -archivePath build/Airhand.xcarchive -exportPath build/export \
-    -exportOptionsPlist build/ExportOptions.plist -allowProvisioningUpdates | grep -E "error:|EXPORT (SUCCEEDED|FAILED)"
+    -exportOptionsPlist build/ExportOptions.plist -allowProvisioningUpdates 2>&1 | tee build/logs/export.log
+  python3 scripts/check-package-lock.py Airhand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
   echo "已生成：$(pwd)/build/export/Airhand.ipa"
   exit 0
 fi
 
 rm -rf build/dd-release build/Payload build/Airhand.ipa
-xcodebuild -project Airhand.xcodeproj -scheme Airhand -configuration Release -sdk iphoneos \
+xcodebuild -project Airhand.xcodeproj -scheme Airhand "${PACKAGE_FLAGS[@]}" -configuration Release -sdk iphoneos \
   -destination 'generic/platform=iOS' -derivedDataPath build/dd-release \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-  AIRHAND_SERVER="$SERVER" AIRHAND_SERVER_FP="$FP" build | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+  AIRHAND_SERVER="$SERVER" AIRHAND_SERVER_FP="$FP" build 2>&1 | tee build/logs/device-build.log
+python3 scripts/check-package-lock.py Airhand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 APP=build/dd-release/Build/Products/Release-iphoneos/Airhand.app
 mkdir -p build/Payload

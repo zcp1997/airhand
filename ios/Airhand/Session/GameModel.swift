@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// 游戏按键：叠在画面上的按钮和摇杆（控制电脑时用），和 Android 版的功能一样。
 /// 按钮发的是协议里已有的按键、鼠标键、滚轮和相对移动，被控端不用做什么。
@@ -65,7 +65,7 @@ struct GamePref: Codable, Equatable {
     var layout: UUID?
 }
 
-@Observable
+@Perceptible
 final class GameStore {
     private(set) var layouts: [GameLayout] = []
     private(set) var prefs: [String: GamePref] = [:]

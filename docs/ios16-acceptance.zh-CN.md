@@ -32,7 +32,7 @@
 | L01 协议与媒体核心 | `cargo test --locked -p airhand-proto -p airhand-link -p airhand-mobile`，保存完整输出 | 所有测试退出码 0；涵盖既有协议样例、媒体包解析、消息边界、队列与文件核心测试；任何跳过项单列说明 |
 | L02 iOS Rust 包装 | `cargo test --locked --manifest-path ios/native/Cargo.toml` | 测试及编译通过；C ABI 和 Swift 调用接口没有不兼容改动；不能把宿主平台成功称为 iOS 链接成功 |
 | L03 安全核心行为 | 执行 server 进程内 QUIC 集成安全回归；从实际输出标记配对成功/错误码、陌生或变化的主机密钥、重放/篡改拒绝、证书指纹校验、文件路径约束相关既有测试 | 对应测试实际运行且通过；缺失的关键路径补行为测试，不能只按源码中存在函数名判断通过 |
-| L04 Swift 协议与纯逻辑 | macOS CLT 的 Swift Package 测试直接编译生产源码 allowlist（Protocol/Model/L10n/Gestures/AvSync 等），复用协议样例并验证输入/手势/同步逻辑；核对设置和序列化行为 | 实际执行的生产纯逻辑测试退出码 0；含无效/截断输入；不复制实现到测试桩；依赖 UIKit 的测试留给 G2，并明确标记 |
+| L04 Swift 协议与纯逻辑 | macOS CLT 的 Swift Package + 显式可执行断言器直接编译生产源码 allowlist（Protocol/Model/L10n/Gestures/AvSync 等），复用协议样例并验证输入/手势/同步逻辑；核对设置和序列化行为 | 实际执行的生产纯逻辑测试退出码 0；含无效/截断输入；不复制实现到测试桩；依赖 UIKit 的测试留给 G2，并明确标记 |
 | L05 工程生成与最低版本 | `xcodegen generate`；检查生成工程、项目配置和 Rust 构建参数 | App、Broadcast、Tests 的部署目标全部为 16.6；Rust/C 依赖使用相同目标；没有残留的强制 17.0 目标 |
 | L06 状态观察与 API 审查 | 全量检查 7 个原观察类、所有绑定和 UIKit 观察路径；检查新版 SwiftUI/音频 API；本机 Swift 6.4 验证选定 Perception 的依赖解析和宏编译 | iOS 16 路径不存在无保护的系统 Observation 依赖；Perception 观察覆盖 `body`、延迟创建的列表/弹窗/工具栏及 UIKit 重订阅；新 API 有旧版等价路径；兼容库不是仅在文档上声称可用 |
 | L07 脚本与工作流 | Shell 语法检查、YAML/Actions 检查、失败路径审查 | 任一编译/测试/校验失败使 job 失败；日志不被仅保留 `error:` 的过滤器截断；IPA 上传依赖完整校验成功 |
@@ -106,3 +106,7 @@
 | G1 | NOT RUN | 待记录 | 按L01–L09、S01–S08执行 | 待记录 | 未验证前不能推送 |
 | G2 | NOT RUN | 待记录 | 按C01–C08执行 | 待记录 | G1通过后才启动候选构建 |
 | G3 | NOT RUN | 待记录 | 按D01–D16执行 | 待记录 | 需要用户真机，不得预填通过 |
+
+## 宿主执行器补充
+
+本机 CLT 缺少完整测试框架运行时，宿主核心验证使用 `swift run --package-path ios --build-system native --force-resolved-versions AirhandCoreSelfTest`。显式登记并执行22项原用例，所有期望表达式保持，断言失败累积并返回非零；G1另运行故意失败探针证明执行器不会吞掉失败。只编译生产源码allowlist，不复制生产实现或访问用户持久数据。iOS工程的XCTest继续由CI执行。

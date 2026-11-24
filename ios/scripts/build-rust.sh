@@ -15,13 +15,13 @@ PROFILE="${2:-release}"
 export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 # Xcode 会设置这些，影响 cargo 给 Mac 编译构建脚本（build.rs）
 unset SDKROOT IPHONEOS_DEPLOYMENT_TARGET MACOSX_DEPLOYMENT_TARGET TARGET_DEVICE_PLATFORM_NAME || true
-export IPHONEOS_DEPLOYMENT_TARGET=17.0
+export IPHONEOS_DEPLOYMENT_TARGET=16.6
 
 build() {
   local target="$1" out="$2"
   local flag=""
   [ "$PROFILE" = "release" ] && flag="--release"
-  (cd "$HERE/native" && cargo build $flag --lib --target "$target")
+  (cd "$HERE/native" && cargo build --locked $flag --lib --target "$target")
   mkdir -p "$HERE/build/rust/$out"
   cp "$HERE/native/target/$target/$PROFILE/libairhand_ios.a" "$HERE/build/rust/$out/libairhand_ios.a"
 }

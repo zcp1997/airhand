@@ -604,6 +604,47 @@ mod tests {
     use super::*;
 
     #[test]
+    fn pinned_certificate_and_learned_trust_reject_a_replacement() {
+        let first = rcgen::generate_simple_self_signed(vec!["airhand".into()]).unwrap();
+        let replacement = rcgen::generate_simple_self_signed(vec!["airhand".into()]).unwrap();
+        let fingerprint: [u8; 32] = Sha256::digest(first.cert.der().as_ref()).into();
+        let store = MemoryTrust::with("relay:4433", Some(fingerprint));
+        let seen = Arc::new(Seen::default());
+        let verifier = PinnedVerifier {
+            provider: Arc::new(rustls::crypto::ring::default_provider()),
+            pin: store.load("relay:4433"),
+            seen: seen.clone(),
+        };
+        let name = ServerName::try_from("airhand").unwrap();
+        let now = UnixTime::since_unix_epoch(Duration::from_secs(1));
+        assert!(
+            verifier
+                .verify_server_cert(first.cert.der(), &[], &name, &[], now)
+                .is_ok()
+        );
+        assert!(!seen.mismatch.load(Ordering::Relaxed));
+        assert!(
+            verifier
+                .verify_server_cert(replacement.cert.der(), &[], &name, &[], now)
+                .is_err()
+        );
+        assert!(seen.mismatch.load(Ordering::Relaxed));
+        assert_eq!(store.load("relay:4433"), Some(fingerprint));
+
+        let wrong_pin = PinnedVerifier {
+            provider: Arc::new(rustls::crypto::ring::default_provider()),
+            pin: Some([0; 32]),
+            seen: Arc::new(Seen::default()),
+        };
+        assert!(
+            wrong_pin
+                .verify_server_cert(first.cert.der(), &[], &name, &[], now)
+                .is_err()
+        );
+        assert!(wrong_pin.seen.mismatch.load(Ordering::Relaxed));
+    }
+
+    #[test]
     fn fingerprint() {
         let hex = "3a".repeat(32);
         assert_eq!(parse_fingerprint(&hex).unwrap(), Some([0x3a; 32]));

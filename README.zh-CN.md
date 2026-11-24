@@ -56,7 +56,7 @@ Airhand 是一个**高性能、低延迟**的远程桌面：画面用 GPU 硬件
 | Linux | ✅ | ✅ | 被控端只支持 X11 桌面，目前只有软件编码 |
 | Android 7+ 手机 / 平板 | ✅ | ✅ | 开启无障碍服务后才能被操作，否则只能被看；控制端同一时间连一台 |
 | Android TV / Google TV | — | 只看画面 | 全部用遥控器操作 |
-| iOS / iPadOS 17+ | 只能被看 | ✅ | 共享本机用系统的屏幕广播；iOS 不允许别的应用操作本机 |
+| iOS / iPadOS 16.6+ | 只能被看 | ✅ | 共享本机用系统的屏幕广播；iOS 不允许别的应用操作本机 |
 | 浏览器（网页控制台） | — | ✅ | Chrome / Edge、Safari 16.4+、Firefox 130+ |
 
 各平台的已知问题见[已知限制](docs/limitations.zh-CN.md)。
@@ -184,3 +184,5 @@ AIRHAND_SERVER=relay.example.com:4433 AIRHAND_SERVER_FP=<指纹> docker compose 
 ## 许可证
 
 [MIT](LICENSE)
+
+本 Fork 提供 [iOS 16.6.1 / TrollStore 兼容候选构建](docs/ios.zh-CN.md#本-fork-的-ios-1661-候选构建)。构建通过与真机验收分开记录，详见[验收标准与安全闸口](docs/ios16-acceptance.zh-CN.md)。

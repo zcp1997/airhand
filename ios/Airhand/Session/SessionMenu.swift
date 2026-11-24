@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import UIKit
 
@@ -16,7 +17,7 @@ struct SessionMenuActions {
 /// 远程画面的菜单（从画面边上的圆钮打开）：顶部是对方和连接信息，下面是常用操作和几个子页面
 struct SessionMenu: View {
     let app: AppModel
-    @Bindable var session: RemoteSession
+    @Perception.Bindable var session: RemoteSession
     let ui: SessionUIState
     let actions: SessionMenuActions
     @Environment(\.dismiss) private var dismiss
@@ -24,20 +25,22 @@ struct SessionMenu: View {
     private var computer: Bool { !session.os.isPhone }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    tiles
-                    pages
+        WithPerceptionTracking {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        header
+                        tiles
+                        pages
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
+                .background(Theme.bg.ignoresSafeArea())
+                .toolbar(.hidden, for: .navigationBar)
             }
-            .background(Theme.bg.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 
     // ── 顶部 ──
@@ -111,18 +114,22 @@ struct SessionMenu: View {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             action()
         } label: {
-            VStack(spacing: 8) {
-                Image(systemName: icon).font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(on ? .white : tint)
-                Text(title).font(.caption.weight(.medium)).foregroundStyle(on ? .white : Theme.sub).lineLimit(1).minimumScaleFactor(0.7)
+            WithPerceptionTracking {
+                VStack(spacing: 8) {
+                    Image(systemName: icon).font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(on ? .white : tint)
+                    Text(title).font(.caption.weight(.medium)).foregroundStyle(on ? .white : Theme.sub).lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .frame(maxWidth: .infinity, minHeight: 74)
+                .background {
+                    WithPerceptionTracking {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(on ? AnyShapeStyle(Theme.gradient) : AnyShapeStyle(Theme.card))
+                    }
+                }
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.stroke))
+                .opacity(dim ? 0.5 : 1)
             }
-            .frame(maxWidth: .infinity, minHeight: 74)
-            .background {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(on ? AnyShapeStyle(Theme.gradient) : AnyShapeStyle(Theme.card))
-            }
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.stroke))
-            .opacity(dim ? 0.5 : 1)
         }
         .buttonStyle(.plain)
     }
@@ -132,24 +139,28 @@ struct SessionMenu: View {
     private var pages: some View {
         VStack(spacing: 0) {
             if !session.viewOnly {
-                NavigationLink { ShortcutsPage(session: session) } label: { row("command", L.t("menu_shortcuts")) }
+                NavigationLink { WithPerceptionTracking { ShortcutsPage(session: session) } } label: { WithPerceptionTracking { row("command", L.t("menu_shortcuts")) } }
                 Divider().overlay(Theme.stroke).padding(.leading, 50)
             }
-            NavigationLink { QualityPage(app: app, session: session) } label: {
-                row("sparkles.tv", L.t("menu_quality"), value: Preset.match(session.quality).map { L.t("preset_\($0.rawValue)") })
+            NavigationLink { WithPerceptionTracking { QualityPage(app: app, session: session) } } label: {
+                WithPerceptionTracking {
+                    row("sparkles.tv", L.t("menu_quality"), value: Preset.match(session.quality).map { L.t("preset_\($0.rawValue)") })
+                }
             }
             if !session.viewOnly {
                 Divider().overlay(Theme.stroke).padding(.leading, 50)
-                NavigationLink { ClipboardPage(app: app, session: session) } label: { row("doc.on.clipboard", L.t("menu_clipboard")) }
+                NavigationLink { WithPerceptionTracking { ClipboardPage(app: app, session: session) } } label: { WithPerceptionTracking { row("doc.on.clipboard", L.t("menu_clipboard")) } }
             }
             if session.displays.count > 1 {
                 Divider().overlay(Theme.stroke).padding(.leading, 50)
-                NavigationLink { DisplaysPage(session: session) } label: { row("display.2", L.t("menu_displays")) }
+                NavigationLink { WithPerceptionTracking { DisplaysPage(session: session) } } label: { WithPerceptionTracking { row("display.2", L.t("menu_displays")) } }
             }
             if computer && !session.viewOnly {
                 Divider().overlay(Theme.stroke).padding(.leading, 50)
-                NavigationLink { GamePage(app: app, session: session, edit: actions.editGame) } label: {
-                    row("gamecontroller", L.t("menu_game"), value: app.games.pref(session.code).enabled ? L.t("on") : L.t("off"))
+                NavigationLink { WithPerceptionTracking { GamePage(app: app, session: session, edit: actions.editGame) } } label: {
+                    WithPerceptionTracking {
+                        row("gamecontroller", L.t("menu_game"), value: app.games.pref(session.code).enabled ? L.t("on") : L.t("off"))
+                    }
                 }
             }
         }
@@ -197,33 +208,39 @@ struct ShortcutsPage: View {
     }
 
     var body: some View {
-        List {
-            if let actions = session.hello?.actions, !actions.isEmpty {
-                Section {
-                    ForEach(actions, id: \.self) { a in
-                        Button(L.t("action_\(a.rawValue)")) {
-                            session.system(a)
-                            dismiss()
+        WithPerceptionTracking {
+            List {
+                if let actions = session.hello?.actions, !actions.isEmpty {
+                    Section {
+                        ForEach(actions, id: \.self) { a in
+                            WithPerceptionTracking {
+                                Button(L.t("action_\(a.rawValue)")) {
+                                    session.system(a)
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                }
+                if !combos.isEmpty {
+                    Section {
+                        ForEach(combos, id: \.0) { key, codes in
+                            WithPerceptionTracking {
+                                Button(L.t(key)) {
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    session.input(Input.chord(codes))
+                                }
+                            }
                         }
                     }
                 }
             }
-            if !combos.isEmpty {
-                Section {
-                    ForEach(combos, id: \.0) { key, codes in
-                        Button(L.t(key)) {
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            session.input(Input.chord(codes))
-                        }
-                    }
-                }
-            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg)
+            .navigationTitle(L.t("menu_shortcuts"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(L.t("menu_shortcuts"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
     }
 }
 
@@ -234,66 +251,78 @@ struct QualityPage: View {
     let session: RemoteSession
 
     var body: some View {
-        List {
-            Section {
-                ForEach(Preset.allCases) { p in
-                    Button {
-                        session.setQuality(p.quality(session.quality.codec))
-                        app.settings.preset = p.rawValue
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L.t("preset_\(p.rawValue)")).foregroundStyle(Theme.text)
-                                Text(L.t("preset_\(p.rawValue)_desc")).font(.caption).foregroundStyle(Theme.sub)
+        WithPerceptionTracking {
+            List {
+                Section {
+                    ForEach(Preset.allCases) { p in
+                        WithPerceptionTracking {
+                            Button {
+                                session.setQuality(p.quality(session.quality.codec))
+                                app.settings.preset = p.rawValue
+                            } label: {
+                                WithPerceptionTracking {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(L.t("preset_\(p.rawValue)")).foregroundStyle(Theme.text)
+                                            Text(L.t("preset_\(p.rawValue)_desc")).font(.caption).foregroundStyle(Theme.sub)
+                                        }
+                                        Spacer()
+                                        if Preset.match(session.quality) == p { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
+                                    }
+                                }
                             }
-                            Spacer()
-                            if Preset.match(session.quality) == p { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
                         }
                     }
                 }
-            }
-            Section(L.t("codec")) {
-                let usable = session.usableCodecs
-                let auto = app.settings.codec.isEmpty || !usable.contains(where: { $0.wire == app.settings.codec })
-                Button {
-                    session.setCodec(nil)
-                } label: {
-                    HStack {
-                        Text(L.t("codec_auto_value", usable.first?.short ?? "H.264")).foregroundStyle(Theme.text)
-                        Spacer()
-                        if auto { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
-                    }
-                }
-                ForEach(usable) { c in
+                Section(L.t("codec")) {
+                    let usable = session.usableCodecs
+                    let auto = app.settings.codec.isEmpty || !usable.contains(where: { $0.wire == app.settings.codec })
                     Button {
-                        session.setCodec(c)
+                        session.setCodec(nil)
                     } label: {
-                        HStack {
-                            Text(c.label).foregroundStyle(Theme.text)
-                            Spacer()
-                            if !auto && session.quality.codec == c { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
+                        WithPerceptionTracking {
+                            HStack {
+                                Text(L.t("codec_auto_value", usable.first?.short ?? "H.264")).foregroundStyle(Theme.text)
+                                Spacer()
+                                if auto { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
+                            }
+                        }
+                    }
+                    ForEach(usable) { c in
+                        WithPerceptionTracking {
+                            Button {
+                                session.setCodec(c)
+                            } label: {
+                                WithPerceptionTracking {
+                                    HStack {
+                                        Text(c.label).foregroundStyle(Theme.text)
+                                        Spacer()
+                                        if !auto && session.quality.codec == c { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let e = session.encoder {
+                        Text(L.t("encoder_info", e.codec.label, e.width, e.height, e.name, e.hardware ? L.t("hardware") : L.t("software")))
+                            .font(.caption).foregroundStyle(Theme.sub)
+                    }
+                }
+                Section {
+                    Toggle(isOn: Binding(get: { session.avSyncOn }, set: { session.setAvSync($0) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L.t("av_sync"))
+                            Text(L.t("av_sync_desc")).font(.caption).foregroundStyle(Theme.sub)
                         }
                     }
                 }
-                if let e = session.encoder {
-                    Text(L.t("encoder_info", e.codec.label, e.width, e.height, e.name, e.hardware ? L.t("hardware") : L.t("software")))
-                        .font(.caption).foregroundStyle(Theme.sub)
-                }
             }
-            Section {
-                Toggle(isOn: Binding(get: { session.avSyncOn }, set: { session.setAvSync($0) })) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L.t("av_sync"))
-                        Text(L.t("av_sync_desc")).font(.caption).foregroundStyle(Theme.sub)
-                    }
-                }
-            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg)
+            .navigationTitle(L.t("menu_quality"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(L.t("menu_quality"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
     }
 }
 
@@ -305,17 +334,19 @@ struct ClipboardPage: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        List {
-            Section {
-                Button { send(type: false) } label: { item("doc.on.clipboard", "clipboard_send", "clipboard_send_desc") }
-                Button { send(type: true) } label: { item("keyboard.badge.ellipsis", "clipboard_type", "clipboard_type_desc") }
+        WithPerceptionTracking {
+            List {
+                Section {
+                    Button { send(type: false) } label: { WithPerceptionTracking { item("doc.on.clipboard", "clipboard_send", "clipboard_send_desc") } }
+                    Button { send(type: true) } label: { WithPerceptionTracking { item("keyboard.badge.ellipsis", "clipboard_type", "clipboard_type_desc") } }
+                }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg)
+            .navigationTitle(L.t("menu_clipboard"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(L.t("menu_clipboard"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
     }
 
     private func item(_ icon: String, _ t: String, _ d: String) -> some View {
@@ -347,26 +378,32 @@ struct DisplaysPage: View {
     let session: RemoteSession
 
     var body: some View {
-        List {
-            ForEach(session.displays) { d in
-                Button { session.selectDisplay(d.index) } label: {
-                    HStack {
-                        Image(systemName: "display").foregroundStyle(Theme.c3)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(d.name.isEmpty ? L.t("display_n", d.index + 1) : d.name).foregroundStyle(Theme.text)
-                            Text("\(d.width)×\(d.height)\(d.primary ? " · " + L.t("display_primary") : "")").font(.caption).foregroundStyle(Theme.sub)
+        WithPerceptionTracking {
+            List {
+                ForEach(session.displays) { d in
+                    WithPerceptionTracking {
+                        Button { session.selectDisplay(d.index) } label: {
+                            WithPerceptionTracking {
+                                HStack {
+                                    Image(systemName: "display").foregroundStyle(Theme.c3)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(d.name.isEmpty ? L.t("display_n", d.index + 1) : d.name).foregroundStyle(Theme.text)
+                                        Text("\(d.width)×\(d.height)\(d.primary ? " · " + L.t("display_primary") : "")").font(.caption).foregroundStyle(Theme.sub)
+                                    }
+                                    Spacer()
+                                    if d.index == session.currentDisplay { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
+                                }
+                            }
                         }
-                        Spacer()
-                        if d.index == session.currentDisplay { Image(systemName: "checkmark").foregroundStyle(Theme.c3) }
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg)
+            .navigationTitle(L.t("menu_displays"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(L.t("menu_displays"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
     }
 }
 
@@ -384,77 +421,85 @@ struct GamePage: View {
     private var store: GameStore { app.games }
 
     var body: some View {
-        List {
-            Section {
-                Toggle(isOn: Binding(get: { store.pref(session.code).enabled }, set: { store.setEnabled(session.code, $0) })) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L.t("game_show"))
-                        Text(L.t("game_show_desc")).font(.caption).foregroundStyle(Theme.sub)
+        WithPerceptionTracking {
+            List {
+                Section {
+                    Toggle(isOn: Binding(get: { store.pref(session.code).enabled }, set: { store.setEnabled(session.code, $0) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L.t("game_show"))
+                            Text(L.t("game_show_desc")).font(.caption).foregroundStyle(Theme.sub)
+                        }
                     }
+                } footer: {
+                    Text(L.t("game_tip"))
                 }
-            } footer: {
-                Text(L.t("game_tip"))
-            }
-            Section(L.t("game_layouts")) {
-                if store.layouts.isEmpty {
-                    Text(L.t("game_no_layouts")).foregroundStyle(Theme.sub)
-                }
-                ForEach(store.layouts) { l in
-                    let selected = (store.active(session.code)?.id ?? store.pref(session.code).layout) == l.id
-                    Button { store.select(session.code, l.id) } label: {
-                        HStack {
-                            Image(systemName: selected ? "largecircle.fill.circle" : "circle").foregroundStyle(selected ? Theme.c3 : Theme.faint)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(l.name).foregroundStyle(Theme.text)
-                                Text("\(l.items.count)").font(.caption).foregroundStyle(Theme.sub)
-                            }
-                            Spacer()
-                            Menu {
-                                Button { edit(l) } label: { Label(L.t("game_edit"), systemImage: "slider.horizontal.3") }
-                                Button { name = l.name; renaming = l } label: { Label(L.t("rename"), systemImage: "pencil") }
-                                Button { _ = store.duplicate(l) } label: { Label(L.t("game_duplicate"), systemImage: "plus.square.on.square") }
-                                Button(role: .destructive) { deleting = l } label: { Label(L.t("delete"), systemImage: "trash") }
-                            } label: {
-                                Image(systemName: "ellipsis.circle").font(.title3).foregroundStyle(Theme.sub).frame(width: 40, height: 36)
+                Section(L.t("game_layouts")) {
+                    if store.layouts.isEmpty {
+                        Text(L.t("game_no_layouts")).foregroundStyle(Theme.sub)
+                    }
+                    ForEach(store.layouts) { l in
+                        WithPerceptionTracking {
+                            let selected = (store.active(session.code)?.id ?? store.pref(session.code).layout) == l.id
+                            Button { store.select(session.code, l.id) } label: {
+                                WithPerceptionTracking {
+                                    HStack {
+                                        Image(systemName: selected ? "largecircle.fill.circle" : "circle").foregroundStyle(selected ? Theme.c3 : Theme.faint)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(l.name).foregroundStyle(Theme.text)
+                                            Text("\(l.items.count)").font(.caption).foregroundStyle(Theme.sub)
+                                        }
+                                        Spacer()
+                                        Menu {
+                                            Button { edit(l) } label: { WithPerceptionTracking { Label(L.t("game_edit"), systemImage: "slider.horizontal.3") } }
+                                            Button { name = l.name; renaming = l } label: { WithPerceptionTracking { Label(L.t("rename"), systemImage: "pencil") } }
+                                            Button { _ = store.duplicate(l) } label: { WithPerceptionTracking { Label(L.t("game_duplicate"), systemImage: "plus.square.on.square") } }
+                                            Button(role: .destructive) { deleting = l } label: { WithPerceptionTracking { Label(L.t("delete"), systemImage: "trash") } }
+                                        } label: {
+                                            WithPerceptionTracking {
+                                                Image(systemName: "ellipsis.circle").font(.title3).foregroundStyle(Theme.sub).frame(width: 40, height: 36)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+                    Button { newSheet = true } label: { WithPerceptionTracking { Label(L.t("game_new"), systemImage: "plus") } }
                 }
-                Button { newSheet = true } label: { Label(L.t("game_new"), systemImage: "plus") }
-            }
-            if let active = store.active(session.code) {
-                Section {
-                    Button { edit(active) } label: { Label(L.t("game_edit"), systemImage: "slider.horizontal.3") }
+                if let active = store.active(session.code) {
+                    Section {
+                        Button { edit(active) } label: { WithPerceptionTracking { Label(L.t("game_edit"), systemImage: "slider.horizontal.3") } }
+                    }
                 }
             }
-        }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(L.t("menu_game"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .confirmationDialog(L.t("game_new_title"), isPresented: $newSheet, titleVisibility: .visible) {
-            Button(L.t("game_tpl_shooter")) { create(GameTemplates.shooter()) }
-            Button(L.t("game_tpl_skills")) { create(GameTemplates.skills()) }
-            Button(L.t("game_tpl_arrows")) { create(GameTemplates.arrows()) }
-            Button(L.t("game_tpl_blank")) { create(GameTemplates.blank()) }
-        }
-        .alert(L.t("rename"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField(L.t("game_layout_name"), text: $name)
-            Button(L.t("save")) {
-                if var l = renaming, !name.trimmingCharacters(in: .whitespaces).isEmpty {
-                    l.name = name.trimmingCharacters(in: .whitespaces)
-                    store.update(l)
-                }
-                renaming = nil
+            .scrollContentBackground(.hidden)
+            .background(Theme.bg)
+            .navigationTitle(L.t("menu_game"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
+            .confirmationDialog(L.t("game_new_title"), isPresented: $newSheet, titleVisibility: .visible) {
+                Button(L.t("game_tpl_shooter")) { create(GameTemplates.shooter()) }
+                Button(L.t("game_tpl_skills")) { create(GameTemplates.skills()) }
+                Button(L.t("game_tpl_arrows")) { create(GameTemplates.arrows()) }
+                Button(L.t("game_tpl_blank")) { create(GameTemplates.blank()) }
             }
-            Button(L.t("cancel"), role: .cancel) { renaming = nil }
-        }
-        .confirmationDialog(deleting.map { L.t("game_delete_title", $0.name) } ?? "", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                            titleVisibility: .visible) {
-            Button(L.t("delete"), role: .destructive) {
-                if let d = deleting { store.delete(d.id) }
-                deleting = nil
+            .alert(L.t("rename"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField(L.t("game_layout_name"), text: $name)
+                Button(L.t("save")) {
+                    if var l = renaming, !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                        l.name = name.trimmingCharacters(in: .whitespaces)
+                        store.update(l)
+                    }
+                    renaming = nil
+                }
+                Button(L.t("cancel"), role: .cancel) { renaming = nil }
+            }
+            .confirmationDialog(deleting.map { L.t("game_delete_title", $0.name) } ?? "", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                                titleVisibility: .visible) {
+                Button(L.t("delete"), role: .destructive) {
+                    if let d = deleting { store.delete(d.id) }
+                    deleting = nil
+                }
             }
         }
     }

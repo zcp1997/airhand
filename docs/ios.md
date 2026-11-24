@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · [简体中文](ios.zh-CN.md)
 
-One app (`ios/`) for iPhone and iPad, iOS / iPadOS 17 or later:
+One app (`ios/`) for iPhone and iPad, iOS / iPadOS 16.6 or later:
 
 | Tab | What it does |
 |---|---|
@@ -68,7 +68,7 @@ Settings, saved devices, the end-to-end identity, control code, pairing state an
 
 ## Building
 
-On a Mac with Xcode 27+ (which needs Apple silicon and macOS 26.6 or later; the app still runs on iOS 17+), Rust with `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`, and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
+On a Mac with Xcode 27+ (which needs Apple silicon and macOS 26.6 or later; the app still runs on iOS 16.6+), Rust with `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`, and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
 
 ```bash
 cd ios
@@ -117,3 +117,13 @@ The simulator has no screen broadcast: `-AirhandHostSelfTest 1` runs the same `H
 - Reading this device's clipboard (Menu → Clipboard) shows iOS's paste prompt once
 - Direct LAN connections need the “Local Network” permission; without it everything goes through the relay (or public IPv6)
 - On IPv6-only networks (NAT64), use a host name for the server: iOS doesn't synthesize NAT64 addresses for IPv4 literals
+
+## iOS 16.6.1 candidate builds in this fork
+
+The compatibility branch targets iOS 16.6 and preserves the existing ReplayKit extension and App Group for devices already running TrollStore on iOS 16.6.1. Its ad-hoc IPA is a candidate, not a claim of completed device validation. Prefer an in-place update with the same bundle identifier; uninstalling removes identity and pairing data.
+
+See the [acceptance gates](ios16-acceptance.zh-CN.md) and [incremental design](ios16-design.zh-CN.md). After local G1 tests and independent review pass, push `compat/ios-16.6` to the personal fork. The **iOS 16 candidate IPA** Actions workflow builds only iOS and can also be run manually on that branch. Server defaults are optional and can be configured after installation. Download the `Airhand-ios16-<commit SHA>` artifact and verify `SHA256SUMS.txt` before installing with TrollStore.
+
+The workflow pins Xcode 27.2, Rust 1.93.0, XcodeGen 2.48.0, Perception 2.0.12 and SwiftPM dependency revisions. It runs production Swift core tests and available newer iOS simulator tests, builds device arm64 Release binaries, and verifies the IPA structure, binary minimum OS/platform, signatures and entitlements before uploading. Full diagnostics are uploaded separately. iOS 16.6.1 device testing remains a separate gate.
+
+Run host checks with `ios/scripts/check-ios16.sh` using Rust 1.93.0, Swift 6.4, XcodeGen and actionlint. These tests compile production protocol, gesture, synchronization and state code, and exercise real Rust security/QUIC/C ABI behavior without touching user App Group data. They do not replace device audio, Bluetooth, permissions or broadcasting tests.

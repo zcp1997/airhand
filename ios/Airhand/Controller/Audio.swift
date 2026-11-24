@@ -94,7 +94,7 @@ final class AudioIO {
             return
         }
         if mic {
-            try s.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowBluetoothA2DP])
+            try s.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
         } else {
             try s.setCategory(.playback, mode: .default, options: [])
         }
@@ -212,7 +212,12 @@ final class MicCapture {
     init(deliver: @escaping (Data) -> Void) { self.deliver = deliver }
 
     static func requestPermission(_ done: @escaping (Bool) -> Void) {
-        AVAudioApplication.requestRecordPermission { ok in DispatchQueue.main.async { done(ok) } }
+        let reply: (Bool) -> Void = { ok in DispatchQueue.main.async { done(ok) } }
+        if #available(iOS 17.0, *) {
+            AVAudioApplication.requestRecordPermission(completionHandler: reply)
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission(reply)
+        }
     }
 
     func start() throws {
