@@ -6,11 +6,14 @@ let package = Package(
     name: "AirhandCoreLogic",
     platforms: [.macOS(.v14), .iOS("16.6")],
     products: [.library(name: "AirhandCoreLogic", targets: ["AirhandCoreLogic"])],
-    dependencies: [.package(url: "https://github.com/pointfreeco/swift-perception", exact: "2.0.12")],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-perception", exact: "2.0.12"),
+        .package(url: "https://github.com/pointfreeco/swift-issue-reporting", exact: "2.1.2")
+    ],
     targets: [
         .target(
             name: "AirhandCoreLogic",
-            dependencies: [.product(name: "Perception", package: "swift-perception")],
+            dependencies: [.product(name: "Perception", package: "swift-perception"), .product(name: "IssueReporting", package: "swift-issue-reporting")],
             path: ".",
             exclude: ["Broadcast", "CoreTests", "Tests", "native", "scripts", "build", "Airhand.xcodeproj",
                       "project.yml", "Shared/HostRunner.swift", "Shared/Native.swift", "Shared/Opus.swift", "Shared/SharedStore.swift",
@@ -23,7 +26,7 @@ let package = Package(
             sources: ["Shared/Utilities.swift", "Shared/Model.swift", "Shared/L10n.swift", "Airhand/Core/Protocol.swift",
                       "Airhand/Session/Gestures.swift", "Airhand/Controller/AvSync.swift", "Airhand/Session/SessionState.swift"]
         ),
-        .executableTarget(name: "AirhandCoreSelfTest", dependencies: ["AirhandCoreLogic", .product(name: "Perception", package: "swift-perception")], path: "CoreTests")
+        .executableTarget(name: "AirhandCoreSelfTest", dependencies: ["AirhandCoreLogic", .product(name: "Perception", package: "swift-perception"), .product(name: "IssueReporting", package: "swift-issue-reporting")], path: "CoreTests")
     ],
     swiftLanguageModes: [.v5]
 )

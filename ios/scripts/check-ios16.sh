@@ -44,6 +44,20 @@ for source in Path('ios/Airhand').rglob('*.swift'):
     text = source.read_text()
     assert 'import Observation' not in text and '@Observable' not in text and '@Bindable' not in text, source
 assert 'cargo build --locked' in Path('ios/scripts/build-rust.sh').read_text()
+# Xcode must link the already pinned transitive product explicitly too.
+import json
+import subprocess
+objects = json.loads(subprocess.check_output(['plutil', '-convert', 'json', '-o', '-', 'ios/Airhand.xcodeproj/project.pbxproj']))['objects']
+for target in objects.values():
+    if target.get('isa') != 'PBXNativeTarget':
+        continue
+    products = {objects[ref]['productName'] for ref in target.get('packageProductDependencies', [])}
+    linked = {objects[objects[ref]['productRef']]['productName'] for phase in target['buildPhases']
+              if objects[phase].get('isa') == 'PBXFrameworksBuildPhase' for ref in objects[phase]['files']
+              if 'productRef' in objects[ref]}
+    expected = {'Perception', 'IssueReporting'} if target['name'] in {'Airhand', 'AirhandTests'} else set()
+    assert products == linked == expected, (target['name'], products, linked)
+print('Main/Tests explicitly link Perception and IssueReporting; Broadcast has no Swift packages')
 print('Generated App/Broadcast/Tests deployment targets: 16.6; Rust: 16.6')
 PY
 python3 ios/scripts/check-package-lock.py ios/Airhand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

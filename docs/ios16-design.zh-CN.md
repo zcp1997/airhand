@@ -161,3 +161,9 @@ G2尚未执行设备Release编译与真实IPA检查；G3尚未执行用户iOS16.
 VideoToolbox回调先异步回到解码串行队列再修改解码状态；耗时仍在回调到达时测量，不把队列等待混入解码耗时估计。既有帧确认、关键帧请求、音画等待算法和立即显示标记保持。
 
 实际生产VideoDecoder、AvSync、Protocol及Shared Native/Utilities/Model/L10n已用Swift5语言模式、MacOSX26.5 SDK、`arm64-apple-macosx13.0`目标和真实C ABI头文件完成 `swiftc -typecheck`，退出0；Swift语法与diff格式检查通过。这是API/类型检查证据，不代表已运行iOS16显示层或完成G2/G3；修正后仍需完整G1回归、独立QA和再次CI编译。
+
+## G2 第二轮包产品链接修正
+
+第二轮iOS编译已通过视频API兼容检查，链接时缺少IssueReporting符号。已核对Perception2.0.12真实manifest：PerceptionCore依赖IssueReporting产品，而生成的App/Tests Frameworks阶段原先仅显式列Perception。现将已存在于规范锁中的swift-issue-reporting2.1.2直接声明于XcodeGen及宿主Swift Package，并在主App与Tests显式链接IssueReporting；广播扩展不增加包依赖。项目OTHER_LDFLAGS保留`$(inherited)`并继续链接Rust核心，避免覆盖继承的链接设置；不将其臆断为唯一根因。
+
+Perception2.0.12、IssueReporting2.1.2及SwiftSyntax604.0.0的三个版本与revision逐项不变，规范Package.resolved未修改。生成工程已按PBXNativeTarget产品引用及PBXFrameworksBuildPhase逐项验证主App/Tests都有Perception和IssueReporting、Broadcast没有Swift包，G1加入同一回归检查。真实宿主SDK26.5下使用同一严格pins完整编译链接生产模块，并执行22项CoreSelfTest，退出0；仍需再次iOS CI验证实际链接，不视为G2完成。

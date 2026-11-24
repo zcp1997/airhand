@@ -11,6 +11,9 @@ packages:
   Perception:
     url: https://github.com/pointfreeco/swift-perception
     exactVersion: 2.0.12
+  IssueReporting:
+    url: https://github.com/pointfreeco/swift-issue-reporting
+    exactVersion: 2.1.2
 
 settings:
   base:
@@ -26,7 +29,7 @@ settings:
     # Rust 核心：静态库按 SDK 放在 build/rust/<平台>，C 头文件和 module map 在 native/include
     LIBRARY_SEARCH_PATHS: "$(PROJECT_DIR)/build/rust/$(PLATFORM_NAME)"
     SWIFT_INCLUDE_PATHS: "$(PROJECT_DIR)/native/include"
-    OTHER_LDFLAGS: "-lairhand_ios"
+    OTHER_LDFLAGS: "$(inherited) -lairhand_ios"
     # 编译时写进去的默认服务器和证书指纹（和桌面版、Android 一样，可以在设置里改）
     AIRHAND_SERVER: ""
     AIRHAND_SERVER_FP: ""
@@ -47,6 +50,8 @@ targets:
     dependencies:
       - package: Perception
         product: Perception
+      - package: IssueReporting
+        product: IssueReporting
       - target: AirhandBroadcast
         embed: true
       - sdk: VideoToolbox.framework
@@ -135,6 +140,8 @@ targets:
       - target: Airhand
       - package: Perception
         product: Perception
+      - package: IssueReporting
+        product: IssueReporting
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.airhand.ios.tests

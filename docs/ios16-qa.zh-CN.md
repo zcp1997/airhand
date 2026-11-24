@@ -54,3 +54,16 @@ IPA校验器静态审查覆盖主App/唯一广播扩展身份、精确AppGroup�
 主理人提供的7生产Swift源、真实C ABI头、Swift5 / SDK26.5 / macOS13 typecheck退出0作为API/类型证据。QA又直接读取 `/private/tmp/airhand-ios16-g1-video-fix.log`：修正后完整G1仍为310通过、0失败、3项原有忽略，失败探针、工程生成、pins和安全扫描全部通过；独立diff格式检查退出0。
 
 本窄复核未发现帧逆序、旧任务消耗新槽、无界主队列媒体保留或死锁的阻塞缺陷。允许推送本修正进入第二轮CI；新的设备Release和实际IPA检查仍须由G2证明，iOS16.6.1显示硬件路径及完整交互仍为G3 NOT RUN。
+
+
+## G2 第二轮后的 IssueReporting 链接配置窄复核
+
+本轮最终结论：**PASS，路由 NoOne，无阻塞**。主理人确认完整G1退出0，QA已直接读取 `/private/tmp/airhand-ios16-g1-link-fix.log` 核对：277项Rust核心/服务器 + 4项C ABI + 22项Swift核心 + 7项IPA校验器，共310通过、0失败、3项原有明确忽略。日志同时确认本轮新增的真实Frameworks依赖检查、16.6部署目标、pins与源安全检查通过。
+
+- 差异仅限XcodeGen、宿主Package、生成工程依赖检查和设计记录，没有修改生产业务代码。直接声明的是原有规范锁中的IssueReporting2.1.2，不是新增浮动依赖；Perception2.0.12、IssueReporting2.1.2、SwiftSyntax604.0.0的版本/revision均未变。
+- QA独立将生成PBX转换JSON，核对Main和Tests的packageProductDependencies与PBXFrameworksBuildPhase中的productRef，二者均恰为Perception、IssueReporting；Broadcast的两集合都为空。不能只用项目中存在包名代替真正链接。
+- `OTHER_LDFLAGS`新增 `$(inherited)`，保留 `-lairhand_ios`；未添加忽略链接错误、未解析符号或放宽签名/权限的选项。
+- `Package.resolved`已独立逐字节与HEAD比对一致。生成工程pins检查通过；新G1检查器同时断言目标产品引用及实际Frameworks阶段，没有删去或放宽先前部署/版本/观察/安全检查。
+- `issue-reporting-link-regression.log`显示真实宿主编译和Linking完成、22/22核心用例通过、0断言失败。独立Shell语法、pins、安全扫描及diff格式检查均退出0。
+
+本配置修复已满足推送前G1和独立QA，可提交并推送第三轮CI；实际iOS链接和IPA检查仍不得由宿主成功代替。G3真机验收仍为NOT RUN。
